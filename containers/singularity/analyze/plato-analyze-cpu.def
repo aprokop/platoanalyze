@@ -1,0 +1,32 @@
+BootStrap: library
+From: ubuntu:18.04
+
+%post
+    apt-get -y update
+    export DEBIAN_FRONTEND=noninteractive
+    export FORCE_UNSAFE_CONFIGURE=1
+
+    apt-get install -y --no-install-recommends \
+       autoconf \
+       build-essential \
+       ca-certificates \
+       coreutils \
+       curl \
+       file \
+       git \
+       gfortran \
+       python \
+       unzip \
+       vim \
+       ssh \
+       time \
+       gdb \
+       python3-distutils
+
+    curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && apt-get install git-lfs
+
+    export SPACK_ROOT=/usr/local
+
+    curl -s -L https://api.github.com/repos/platoengine/spack/tarball | tar xzC $SPACK_ROOT --strip 1
+
+    spack install platoanalyze~cuda~amgx+mpmd build_type=Debug @develop ^openmpi@4.0.2 ^trilinos build_type=Debug ^omega-h build_type=Debug ^platoengine build_type=Debug
