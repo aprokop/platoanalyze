@@ -65,6 +65,9 @@ class InternalThermoelasticEnergy :
 
     std::vector<std::string> mPlottable;
 
+    Plato::Scalar mMechanicalWeightingFactor;
+    Plato::Scalar mThermalWeightingFactor;
+
   public:
     /**************************************************************************/
     InternalThermoelasticEnergy(
@@ -78,7 +81,9 @@ class InternalThermoelasticEnergy :
         mIndicatorFunction    (aPenaltyParams),
         mApplyStressWeighting (mIndicatorFunction),
         mApplyFluxWeighting   (mIndicatorFunction),
-        mCubatureRule(std::make_shared<Plato::LinearTetCubRuleDegreeOne<EvaluationType::SpatialDim>>())
+        mCubatureRule(std::make_shared<Plato::LinearTetCubRuleDegreeOne<EvaluationType::SpatialDim>>()),
+        mMechanicalWeightingFactor(1.0),
+        mThermalWeightingFactor(1.0)
     /**************************************************************************/
     {
         Teuchos::ParameterList tProblemParams(aProblemParams);
@@ -97,7 +102,7 @@ class InternalThermoelasticEnergy :
             THROWERR(ss.str());
         }
 
-        auto& tParams = aProblemParams.sublist(aFunctionName);
+        auto& tParams = tProblemParams.sublist("Criteria").sublist(aFunctionName);
         if( tParams.get<bool>("Include Thermal Strain", true) == false )
         {
            auto tMaterialParams = tProblemParams.sublist("Material Models").sublist(tMaterialName);
@@ -105,6 +110,10 @@ class InternalThermoelasticEnergy :
            tMaterialParams.sublist("Cubic Linear Thermoelastic").set("a22",0.0);
            tMaterialParams.sublist("Cubic Linear Thermoelastic").set("a33",0.0);
         }
+        if ( tParams.isType<Plato::Scalar>("Mechanical Weighting Factor") )
+          mMechanicalWeightingFactor = tParams.get<Plato::Scalar>("Mechanical Weighting Factor");
+        if ( tParams.isType<Plato::Scalar>("Thermal Weighting Factor") )
+          mThermalWeightingFactor    = tParams.get<Plato::Scalar>("Thermal Weighting Factor");
 
         Plato::ThermoelasticModelFactory<mSpaceDim> mmfactory(tProblemParams);
         mMaterialModel = mmfactory.create(tMaterialName);
@@ -152,6 +161,9 @@ class InternalThermoelasticEnergy :
 
       Plato::ScalarVectorT<StateScalarType> temperature("Gauss point temperature", tNumCells);
 
+      Plato::Scalar tMechanicalWeightingFactor = mMechanicalWeightingFactor;
+      Plato::Scalar tThermalWeightingFactor    = mThermalWeightingFactor;
+
       auto quadratureWeight = mCubatureRule->getCubWeight();
       auto basisFunctions   = mCubatureRule->getBasisFunctions();
 
@@ -178,8 +190,8 @@ class InternalThermoelasticEnergy :
 
         // compute element internal energy (inner product of strain and weighted stress)
         //
-        mechanicalScalarProduct(aCellOrdinal, aResult, stress, strain, cellVolume);
-        thermalScalarProduct   (aCellOrdinal, aResult, flux,   tgrad,  cellVolume);
+        mechanicalScalarProduct(aCellOrdinal, aResult, stress, strain, cellVolume, tMechanicalWeightingFactor);
+        thermalScalarProduct   (aCellOrdinal, aResult, flux,   tgrad,  cellVolume, tThermalWeightingFactor);
 
       },"energy gradient");
     }
