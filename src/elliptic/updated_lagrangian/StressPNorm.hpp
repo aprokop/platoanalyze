@@ -162,6 +162,24 @@ class StressPNorm :
       mNorm->evaluate(aResult, tStress, aControl, tCellVolume);
 
     }
+
+    /**************************************************************************/
+    void
+    postEvaluate(
+      Plato::ScalarVector resultVector,
+      Plato::Scalar       resultScalar)
+    /**************************************************************************/
+    {
+      mNorm->postEvaluate(resultVector, resultScalar);
+    }
+
+    /**************************************************************************/
+    void
+    postEvaluate( Plato::Scalar& resultValue )
+    /**************************************************************************/
+    {
+      mNorm->postEvaluate(resultValue);
+    }
 };
 // class StressPNorm
 
