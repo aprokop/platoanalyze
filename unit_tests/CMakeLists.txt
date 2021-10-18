@@ -772,6 +772,35 @@ add_test(NAME runMultipointConstraintUnitTests COMMAND ${ES_MPI_TEST})
 ################################################################################
 
 ################################################################################
+set(RVETests_SOURCES
+  PlatoRVETests.cpp
+  PlatoTestHelpers.cpp
+  PlatoUnitTestMain.cpp
+)
+
+set(RVETests_HEADERS
+  PlatoTestHelpers.hpp
+)
+
+add_executable(RVEUnitTests
+  ${RVETests_SOURCES}
+  ${RVETests_HEADERS}
+)
+
+target_link_libraries(RVEUnitTests
+  analyzelib
+  ${PLATO_LIBS}
+  ${Trilinos_LIBRARIES}
+  ${Trilinos_TPL_LIBRARIES}
+  )
+target_include_directories(RVEUnitTests PRIVATE "${PLATOENGINE_PREFIX}/include")
+target_include_directories(RVEUnitTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+build_mpi_test_string(ES_MPI_TEST 1 ${CMAKE_CURRENT_BINARY_DIR}/RVEUnitTests)
+add_test(NAME runRVEUnitTests COMMAND ${ES_MPI_TEST})
+################################################################################
+
+################################################################################
 if(HELMHOLTZ)
   set(HelmholtzFilterTests_SOURCES
     PlatoHelmholtzFilterTests.cpp
