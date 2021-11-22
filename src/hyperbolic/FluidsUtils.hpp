@@ -41,7 +41,7 @@ inline Type get_material_property(
     {
         THROWERR(std::string("Requested material property with tag '") + aMaterialProperty 
             + "' is not defined in material Parameter Sublist '" + aMaterialBlockName 
-            + " within the 'Material Models' Parameter List.")
+            + "' within the 'Material Models' Parameter List.")
     }
     auto tProperty = tMyMaterial.get<Type>(aMaterialProperty);
     return tProperty;

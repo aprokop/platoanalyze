@@ -195,10 +195,10 @@ private:
         if(mReferenceTemperature == static_cast<Plato::Scalar>(0.0))
             { THROWERR(std::string("'Reference Temperature' keyword cannot be set to zero.")) }
             
-        if(Plato::Fluids::is_material_property_defined("Thermal Source Penalty Exponent", tMaterialName, aInputs))
+        if(Plato::Fluids::is_material_property_defined("Source Term Penalty Exponent", tMaterialName, aInputs))
         {
-            mPenaltyExponent = Plato::Fluids::get_material_property<Plato::Scalar>("Thermal Source Penalty Exponent", tMaterialName, aInputs);
-            Plato::is_positive_finite_number(mPenaltyExponent, "Thermal Source Penalty Exponent");
+            mPenaltyExponent = Plato::Fluids::get_material_property<Plato::Scalar>("Source Term Penalty Exponent", tMaterialName, aInputs);
+            Plato::is_positive_finite_number(mPenaltyExponent, "Source Term Penalty Exponent");
         }
     }
 };

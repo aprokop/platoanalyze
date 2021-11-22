@@ -107,6 +107,17 @@ public:
     }
 
     /******************************************************************************//**
+     * \fn Plato::OrdinalType numNodes
+     * \brief Returns the number of nodes in the mesh.
+     * \return number of nodes
+     **********************************************************************************/
+    Plato::OrdinalType
+    numNodes() const
+    {
+        return Mesh.nverts();
+    }
+
+    /******************************************************************************//**
      * \brief get cell ordinal list
      * Note: A const reference is returned to prevent the ref count from being modified.  
     **********************************************************************************/

@@ -98,7 +98,7 @@ integrate_scalar_field
  const Plato::ScalarVectorT<ConfigT> & aCellVolume,
  const Plato::ScalarVectorT<SourceT> & aField,
  const Plato::ScalarMultiVectorT<ResultT> & aResult,
-       ScalarT aMultiplier)
+ const ScalarT & aMultiplier)
 {
     for(Plato::OrdinalType tNode = 0; tNode < NumNodes; tNode++)
     {
@@ -232,7 +232,7 @@ penalize_thermal_diffusivity
 {
     ControlT tDensity = Plato::cell_density<NumNodesPerCell>(aCellOrdinal, aControl);
     ControlT tPenalizedDensity = pow(tDensity, aPenaltyExponent);
-    ControlT tPenalizedThermalDiff = aThermalDiffRatio + ( (static_cast<Plato::Scalar>(1.0) - aThermalDiffRatio) * tPenalizedDensity);
+    ControlT tPenalizedThermalDiff = tPenalizedDensity + ( (static_cast<Plato::Scalar>(1.0) - tPenalizedDensity) * aThermalDiffRatio);
     return tPenalizedThermalDiff;
 }
 // function penalize_thermal_diffusivity

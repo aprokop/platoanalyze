@@ -593,17 +593,17 @@ TEUCHOS_UNIT_TEST(PlatoAnalyzeUnitTests, ReadPvtuFilePaths)
     }
 }
 
-TEUCHOS_UNIT_TEST(PlatoAnalyzeUnitTests, IsothermalFlowOnChannel_Re100_CheckCriterionAvgSurfPress_Gradient)
+TEUCHOS_UNIT_TEST(PlatoAnalyzeUnitTests, IsothermalFlowOnChannel_Re100_CheckCriterionVolume_Gradient)
 {
     // set xml file inputs
     Teuchos::RCP<Teuchos::ParameterList> tInputs =
         Teuchos::getParametersFromXmlString(
             "<ParameterList name='Plato Problem'>"
             "  <ParameterList name='Criteria'>"
-            "    <ParameterList name='Inlet Average Surface Pressure'>"
+            "    <ParameterList name='Volume Criterion'>"
             "      <Parameter name='Type' type='string' value='Scalar Function'/> "
-            "      <Parameter  name='Sides' type='Array(string)' value='{x-}'/>"
-            "      <Parameter name='Scalar Function Type' type='string' value='Average Surface Pressure'/>"
+            "      <Parameter  name='Blocks' type='Array(string)' value='{body}'/>"
+            "      <Parameter name='Scalar Function Type' type='string' value='Volume'/>"
             "    </ParameterList>"
             "  </ParameterList>"
             "  <ParameterList name='Hyperbolic'>"
@@ -697,7 +697,115 @@ TEUCHOS_UNIT_TEST(PlatoAnalyzeUnitTests, IsothermalFlowOnChannel_Re100_CheckCrit
     // create and test gradient wrt control for incompressible cfd problem
     constexpr auto tSpaceDim = 2;
     Plato::Fluids::QuasiImplicit<Plato::IncompressibleFluids<tSpaceDim>> tProblem(*tMesh, tMeshSets, *tInputs, tMachine);
-    auto tError = Plato::test_criterion_grad_wrt_control(tProblem, *tMesh, "Inlet Average Surface Pressure", 1, 6);
+    auto tError = Plato::test_criterion_grad_wrt_control(tProblem, *tMesh, "Volume Criterion", 1, 4);
+    TEST_ASSERT(tError < 1e-4);
+}
+
+TEUCHOS_UNIT_TEST(PlatoAnalyzeUnitTests, IsothermalFlowOnChannel_Re100_CheckCriterionAvgSurfPress_Gradient)
+{
+    // set xml file inputs
+    Teuchos::RCP<Teuchos::ParameterList> tInputs =
+        Teuchos::getParametersFromXmlString(
+            "<ParameterList name='Plato Problem'>"
+            "  <ParameterList name='Criteria'>"
+            "    <ParameterList name='Inlet Mean Surface Pressure'>"
+            "      <Parameter name='Type' type='string' value='Scalar Function'/> "
+            "      <Parameter  name='Sides' type='Array(string)' value='{x-}'/>"
+            "      <Parameter name='Scalar Function Type' type='string' value='Mean Surface Pressure'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList name='Hyperbolic'>"
+            "    <Parameter name='Heat Transfer' type='string' value='None'/>"     
+            "    <Parameter name='Scenario' type='string' value='Density-Based Topology Optimization'/>"
+            "    <ParameterList  name='Momentum Conservation'>"
+            "      <Parameter  name='Stabilization Constant' type='double' value='1'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList name='Spatial Model'>"
+            "    <ParameterList name='Domains'>"
+            "      <ParameterList name='Design Volume'>"
+            "        <Parameter name='Element Block' type='string' value='body'/>"
+            "        <Parameter name='Material Model' type='string' value='water'/>"
+            "      </ParameterList>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList name='Material Models'>"
+            "    <ParameterList name='water'>"
+            "      <Parameter  name='Reynolds Number'  type='double'  value='1e2'/>"
+            "      <Parameter  name='Impermeability Number'  type='double'  value='1'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Velocity Essential Boundary Conditions'>"
+            "    <ParameterList  name='X-Dir Inlet Velocity'>"
+            "      <Parameter  name='Type'     type='string' value='Fixed Value'/>"
+            "      <Parameter  name='Value'    type='double' value='1'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='x-'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='Y-Dir Inlet Velocity'>"
+            "      <Parameter  name='Type'     type='string' value='Fixed Value'/>"
+            "      <Parameter  name='Value'    type='double' value='0'/>"
+            "      <Parameter  name='Index'    type='int'    value='1'/>"
+            "      <Parameter  name='Sides'    type='string' value='x-'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='X-Dir No-Slip on Y+'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='y+'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='Y-Dir No-Slip on Y+'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='1'/>"
+            "      <Parameter  name='Sides'    type='string' value='y+'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='X-Dir No-Slip on Y-'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='y-'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='Y-Dir No-Slip on Y-'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='1'/>"
+            "      <Parameter  name='Sides'    type='string' value='y-'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Pressure Essential Boundary Conditions'>"
+            "    <ParameterList  name='Outlet Pressure'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='x+'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Time Integration'>"
+            "    <Parameter name='Safety Factor' type='double' value='0.7'/>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Linear Solver'>"
+            "    <Parameter name='Solver Stack' type='string' value='Epetra'/>"
+            "    <Parameter name='Display Diagnostics' type='bool' value='false'/>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Convergence'>"
+            "    <Parameter name='Output Frequency' type='int' value='1'/>"
+            "    <Parameter name='Maximum Iterations' type='int' value='5'/>"
+            "    <Parameter name='Steady State Tolerance' type='double' value='1e-3'/>"
+            "  </ParameterList>"
+            "</ParameterList>"
+            );
+
+    // build mesh, spatial domain, and spatial model
+    auto tMesh = PlatoUtestHelpers::build_2d_box_mesh(1,1,10,10);
+    auto tMeshSets = PlatoUtestHelpers::get_box_mesh_sets(tMesh.operator*());
+    Plato::SpatialDomain tDomain(tMesh.operator*(), tMeshSets, "box");
+    tDomain.cellOrdinals("body");
+
+    // create communicator
+    MPI_Comm tMyComm;
+    MPI_Comm_dup(MPI_COMM_WORLD, &tMyComm);
+    Plato::Comm::Machine tMachine(tMyComm);
+
+    // create and test gradient wrt control for incompressible cfd problem
+    constexpr auto tSpaceDim = 2;
+    Plato::Fluids::QuasiImplicit<Plato::IncompressibleFluids<tSpaceDim>> tProblem(*tMesh, tMeshSets, *tInputs, tMachine);
+    auto tError = Plato::test_criterion_grad_wrt_control(tProblem, *tMesh, "Inlet Mean Surface Pressure", 1, 6);
     TEST_ASSERT(tError < 1e-4);
 }
 
@@ -816,10 +924,10 @@ TEUCHOS_UNIT_TEST(PlatoAnalyzeUnitTests, NaturalConvectionSquareEnclosure_Ra1e3_
         Teuchos::getParametersFromXmlString(
             "<ParameterList name='Plato Problem'>"
             "  <ParameterList name='Criteria'>"
-            "    <ParameterList name='Average Surface Temperature'>"
+            "    <ParameterList name='Mean Surface Temperature'>"
             "      <Parameter name='Type' type='string' value='Scalar Function'/> "
             "      <Parameter  name='Sides' type='Array(string)' value='{y+}'/>"
-            "      <Parameter name='Scalar Function Type' type='string' value='Average Surface Temperature'/>"
+            "      <Parameter name='Scalar Function Type' type='string' value='Mean Surface Temperature'/>"
             "    </ParameterList>"
             "  </ParameterList>"
             "  <ParameterList name='Hyperbolic'>"
@@ -932,7 +1040,7 @@ TEUCHOS_UNIT_TEST(PlatoAnalyzeUnitTests, NaturalConvectionSquareEnclosure_Ra1e3_
     // create and test gradient wrt control for incompressible cfd problem
     constexpr auto tSpaceDim = 2;
     Plato::Fluids::QuasiImplicit<Plato::IncompressibleFluids<tSpaceDim>> tProblem(*tMesh, tMeshSets, *tInputs, tMachine);
-    auto tError = Plato::test_criterion_grad_wrt_control(tProblem, *tMesh, "Average Surface Temperature", 1, 4);
+    auto tError = Plato::test_criterion_grad_wrt_control(tProblem, *tMesh, "Mean Surface Temperature", 1, 4);
     TEST_ASSERT(tError < 1e-4);
 }
 
@@ -1076,6 +1184,308 @@ TEUCHOS_UNIT_TEST(PlatoAnalyzeUnitTests, NaturalConvectionSquareEnclosure_Ra1e3_
     constexpr auto tSpaceDim = 2;
     Plato::Fluids::QuasiImplicit<Plato::IncompressibleFluids<tSpaceDim>> tProblem(*tMesh, tMeshSets, *tInputs, tMachine);
     auto tError = Plato::test_criterion_grad_wrt_control(tProblem, *tMesh, "Thermal Compliance", 1, 4);
+    TEST_ASSERT(tError < 1e-4);
+}
+
+TEUCHOS_UNIT_TEST(PlatoAnalyzeUnitTests, NaturalConvectionSquareEnclosure_Ra1e3_CheckCriterionSurfaceThermalFluxGradient)
+{
+    // set xml file inputs
+    Teuchos::RCP<Teuchos::ParameterList> tInputs =
+        Teuchos::getParametersFromXmlString(
+            "<ParameterList name='Plato Problem'>"
+            "  <ParameterList name='Criteria'>"
+            "    <ParameterList name='Thermal Flux'>"
+            "      <Parameter name='Type' type='string' value='Scalar Function'/> "
+            "      <Parameter name='Sides' type='Array(string)' value='{x+}'/>"
+            "      <Parameter name='Conductivity Ratios' type='Array(double)' value='{1.0}'/>" // surface material conductivity over fluid conductivity 
+            "      <Parameter name='Scalar Function Type' type='string' value='Thermal Flux'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList name='Hyperbolic'>"
+            "    <Parameter name='Heat Transfer' type='string' value='Natural'/>"      
+            "    <Parameter name='Scenario' type='string' value='Density-Based Topology Optimization'/>"
+            "    <ParameterList  name='Momentum Conservation'>"
+            "      <Parameter  name='Stabilization Constant' type='double' value='1.0'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList name='Spatial Model'>"
+            "    <ParameterList name='Domains'>"
+            "      <ParameterList name='Design Volume'>"
+            "        <Parameter name='Element Block' type='string' value='body'/>"
+            "        <Parameter name='Material Model' type='string' value='air'/>"
+            "      </ParameterList>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList name='Material Models'>"
+            "    <ParameterList name='air'>"
+            "      <Parameter  name='Impermeability Number'  type='double'  value='100'/>"
+            "      <Parameter  name='Thermal Diffusivity' type='double' value='2.1117e-5'/>"
+            "      <Parameter  name='Kinematic Viscocity'   type='double' value='1.5111e-5'/>"
+            "      <Parameter  name='Thermal Diffusivity Ratio' type='double' value='7750' />"
+            "      <Parameter  name='Thermal Conductivity'  type='double' value='1'/>"
+            "      <Parameter  name='Characteristic Length' type='double' value='1'/>"
+            "      <Parameter  name='Reference Temperature'  type='double'  value='1'/>"
+            "      <Parameter  name='Prandtl Number'  type='double' value='0.7'/>"
+            "      <Parameter  name='Rayleigh Number' type='Array(double)' value='{0,1e3}'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Velocity Essential Boundary Conditions'>"
+            "    <ParameterList  name='X-Dir No-Slip on X-'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='x-'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='Y-Dir No-Slip on X-'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='1'/>"
+            "      <Parameter  name='Sides'    type='string' value='x-'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='X-Dir No-Slip on X+'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='x+'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='Y-Dir No-Slip on X+'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='1'/>"
+            "      <Parameter  name='Sides'    type='string' value='x+'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='X-Dir No-Slip on Y-'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='y-'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='Y-Dir No-Slip on Y-'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='1'/>"
+            "      <Parameter  name='Sides'    type='string' value='y-'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='X-Dir No-Slip on Y+'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='y+'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='Y-Dir No-Slip on Y+'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='1'/>"
+            "      <Parameter  name='Sides'    type='string' value='y+'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Temperature Essential Boundary Conditions'>"
+            "    <ParameterList  name='Hot Wall'>"
+            "      <Parameter  name='Type'     type='string' value='Fixed Value'/>"
+            "      <Parameter  name='Value'    type='double' value='1.0'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='x-'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='Cold Wall'>"
+            "      <Parameter  name='Type'     type='string' value='Fixed Value'/>"
+            "      <Parameter  name='Value'    type='double' value='0.0'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='x+'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList name='Pressure Essential Boundary Conditions'>"
+            "    <ParameterList name='Pressure Boundary Condition with ID 5 applied to Dof with tag PRESS'>"
+            "      <Parameter name='Type' type='string' value='Zero Value'/>"
+            "      <Parameter name='Index' type='int' value='0'/>"
+            "      <Parameter name='Sides' type='string' value='x-'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Thermal Natural Boundary Conditions'>"
+            "    <ParameterList  name='Thermal Flux Boundary Condition'>"
+            "      <Parameter  name='Type'   type='string'  value='Uniform'/>"
+            "      <Parameter  name='Value'  type='double'  value='-3.0'/>"
+            "      <Parameter  name='Sides'  type='string'  value='y-'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Thermal Sources'>"
+            "    <ParameterList  name='Thermal Source'>"
+            "      <Parameter  name='Type'   type='string'  value='Uniform'/>"
+            "      <Parameter  name='Value'  type='double'  value='1'/>"
+            "      <Parameter  name='Element Block'  type='string'  value='body'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Time Integration'>"
+            "    <Parameter name='Safety Factor' type='double' value='0.4'/>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Linear Solver'>"
+            "    <Parameter name='Solver Stack' type='string' value='Epetra'/>"
+            "    <Parameter name='Display Diagnostics' type='bool' value='false'/>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Convergence'>"
+            "    <Parameter name='Output Frequency' type='int' value='1'/>"
+            "    <Parameter name='Maximum Iterations' type='int' value='2'/>"
+            "    <Parameter name='Steady State Tolerance' type='double' value='1e-3'/>"
+            "  </ParameterList>"
+            "</ParameterList>"
+            );
+
+    // build mesh, spatial domain, and spatial model
+    auto tMesh = PlatoUtestHelpers::build_2d_box_mesh(1,1,50,50);
+    auto tMeshSets = PlatoUtestHelpers::get_box_mesh_sets(tMesh.operator*());
+    Plato::SpatialDomain tDomain(tMesh.operator*(), tMeshSets, "box");
+    tDomain.cellOrdinals("body");
+
+    // create communicator
+    MPI_Comm tMyComm;
+    MPI_Comm_dup(MPI_COMM_WORLD, &tMyComm);
+    Plato::Comm::Machine tMachine(tMyComm);
+
+    // create and test gradient wrt control for incompressible cfd problem
+    constexpr auto tSpaceDim = 2;
+    Plato::Fluids::QuasiImplicit<Plato::IncompressibleFluids<tSpaceDim>> tProblem(*tMesh, tMeshSets, *tInputs, tMachine);
+    auto tError = Plato::test_criterion_grad_wrt_control(tProblem, *tMesh, "Thermal Flux", 1, 4);
+    TEST_ASSERT(tError < 1e-4);
+}
+
+TEUCHOS_UNIT_TEST(PlatoAnalyzeUnitTests, NaturalConvectionSquareEnclosure_Ra1e3_CheckCriterionMeanTemperatureGradient)
+{
+    // set xml file inputs
+    Teuchos::RCP<Teuchos::ParameterList> tInputs =
+        Teuchos::getParametersFromXmlString(
+            "<ParameterList name='Plato Problem'>"
+            "  <ParameterList name='Criteria'>"
+            "    <ParameterList name='Mean Temperature'>"
+            "      <Parameter name='Type' type='string' value='Scalar Function'/> "
+            "      <Parameter name='Scalar Function Type' type='string' value='Mean Temperature'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList name='Hyperbolic'>"
+            "    <Parameter name='Heat Transfer' type='string' value='Natural'/>"      
+            "    <Parameter name='Scenario' type='string' value='Density-Based Topology Optimization'/>"
+            "    <ParameterList  name='Momentum Conservation'>"
+            "      <Parameter  name='Stabilization Constant' type='double' value='1.0'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList name='Spatial Model'>"
+            "    <ParameterList name='Domains'>"
+            "      <ParameterList name='Design Volume'>"
+            "        <Parameter name='Element Block' type='string' value='body'/>"
+            "        <Parameter name='Material Model' type='string' value='air'/>"
+            "      </ParameterList>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList name='Material Models'>"
+            "    <ParameterList name='air'>"
+            "      <Parameter  name='Impermeability Number'  type='double'  value='100'/>"
+            "      <Parameter  name='Thermal Diffusivity' type='double' value='2.1117e-5'/>"
+            "      <Parameter  name='Kinematic Viscocity'   type='double' value='1.5111e-5'/>"
+            "      <Parameter  name='Thermal Diffusivity Ratio' type='double' value='7750' />"
+            "      <Parameter  name='Thermal Conductivity'  type='double' value='1'/>"
+            "      <Parameter  name='Characteristic Length' type='double' value='1'/>"
+            "      <Parameter  name='Reference Temperature'  type='double'  value='1'/>"
+            "      <Parameter  name='Prandtl Number'  type='double' value='0.7'/>"
+            "      <Parameter  name='Rayleigh Number' type='Array(double)' value='{0,1e3}'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Velocity Essential Boundary Conditions'>"
+            "    <ParameterList  name='X-Dir No-Slip on X-'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='x-'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='Y-Dir No-Slip on X-'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='1'/>"
+            "      <Parameter  name='Sides'    type='string' value='x-'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='X-Dir No-Slip on X+'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='x+'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='Y-Dir No-Slip on X+'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='1'/>"
+            "      <Parameter  name='Sides'    type='string' value='x+'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='X-Dir No-Slip on Y-'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='y-'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='Y-Dir No-Slip on Y-'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='1'/>"
+            "      <Parameter  name='Sides'    type='string' value='y-'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='X-Dir No-Slip on Y+'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='y+'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='Y-Dir No-Slip on Y+'>"
+            "      <Parameter  name='Type'     type='string' value='Zero Value'/>"
+            "      <Parameter  name='Index'    type='int'    value='1'/>"
+            "      <Parameter  name='Sides'    type='string' value='y+'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Temperature Essential Boundary Conditions'>"
+            "    <ParameterList  name='Hot Wall'>"
+            "      <Parameter  name='Type'     type='string' value='Fixed Value'/>"
+            "      <Parameter  name='Value'    type='double' value='1.0'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='x-'/>"
+            "    </ParameterList>"
+            "    <ParameterList  name='Cold Wall'>"
+            "      <Parameter  name='Type'     type='string' value='Fixed Value'/>"
+            "      <Parameter  name='Value'    type='double' value='0.0'/>"
+            "      <Parameter  name='Index'    type='int'    value='0'/>"
+            "      <Parameter  name='Sides'    type='string' value='x+'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList name='Pressure Essential Boundary Conditions'>"
+            "    <ParameterList name='Pressure Boundary Condition with ID 5 applied to Dof with tag PRESS'>"
+            "      <Parameter name='Type' type='string' value='Zero Value'/>"
+            "      <Parameter name='Index' type='int' value='0'/>"
+            "      <Parameter name='Sides' type='string' value='x-'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Thermal Natural Boundary Conditions'>"
+            "    <ParameterList  name='Thermal Flux Boundary Condition'>"
+            "      <Parameter  name='Type'   type='string'  value='Uniform'/>"
+            "      <Parameter  name='Value'  type='double'  value='-3.0'/>"
+            "      <Parameter  name='Sides'  type='string'  value='y-'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Thermal Sources'>"
+            "    <ParameterList  name='Thermal Source'>"
+            "      <Parameter  name='Type'   type='string'  value='Uniform'/>"
+            "      <Parameter  name='Value'  type='double'  value='1'/>"
+            "      <Parameter  name='Element Block'  type='string'  value='body'/>"
+            "    </ParameterList>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Time Integration'>"
+            "    <Parameter name='Safety Factor' type='double' value='0.4'/>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Linear Solver'>"
+            "    <Parameter name='Solver Stack' type='string' value='Epetra'/>"
+            "    <Parameter name='Display Diagnostics' type='bool' value='false'/>"
+            "  </ParameterList>"
+            "  <ParameterList  name='Convergence'>"
+            "    <Parameter name='Output Frequency' type='int' value='1'/>"
+            "    <Parameter name='Maximum Iterations' type='int' value='2'/>"
+            "    <Parameter name='Steady State Tolerance' type='double' value='1e-3'/>"
+            "  </ParameterList>"
+            "</ParameterList>"
+            );
+
+    // build mesh, spatial domain, and spatial model
+    auto tMesh = PlatoUtestHelpers::build_2d_box_mesh(1,1,40,40);
+    auto tMeshSets = PlatoUtestHelpers::get_box_mesh_sets(tMesh.operator*());
+    Plato::SpatialDomain tDomain(tMesh.operator*(), tMeshSets, "box");
+    tDomain.cellOrdinals("body");
+
+    // create communicator
+    MPI_Comm tMyComm;
+    MPI_Comm_dup(MPI_COMM_WORLD, &tMyComm);
+    Plato::Comm::Machine tMachine(tMyComm);
+
+    // create and test gradient wrt control for incompressible cfd problem
+    constexpr auto tSpaceDim = 2;
+    Plato::Fluids::QuasiImplicit<Plato::IncompressibleFluids<tSpaceDim>> tProblem(*tMesh, tMeshSets, *tInputs, tMachine);
+    auto tError = Plato::test_criterion_grad_wrt_control(tProblem, *tMesh, "Mean Temperature", 1, 4);
     TEST_ASSERT(tError < 1e-4);
 }
 
@@ -3211,12 +3621,12 @@ TEUCHOS_UNIT_TEST(PlatoAnalyzeUnitTests, ParseArray)
             "  <Parameter  name='Weights'      type='Array(double)'  value='{1.0,-1.0}'/>"
             "  <ParameterList  name='My Inlet Pressure'>"
             "    <Parameter  name='Type'                   type='string'           value='Scalar Function'/>"
-            "    <Parameter  name='Scalar Function Type'   type='string'           value='Average Surface Pressure'/>"
+            "    <Parameter  name='Scalar Function Type'   type='string'           value='Mean Surface Pressure'/>"
             "    <Parameter  name='Sides'                  type='Array(string)'    value='{ss_1}'/>"
             "  </ParameterList>"
             "  <ParameterList  name='My Outlet Pressure'>"
             "    <Parameter  name='Type'                   type='string'           value='Scalar Function'/>"
-            "    <Parameter  name='Scalar Function Type'   type='string'           value='Average Surface Pressure'/>"
+            "    <Parameter  name='Scalar Function Type'   type='string'           value='Mean Surface Pressure'/>"
             "    <Parameter  name='Sides'                  type='Array(string)'    value='{ss_2}'/>"
             "  </ParameterList>"
             "</ParameterList>"

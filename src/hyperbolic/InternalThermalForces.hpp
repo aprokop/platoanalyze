@@ -275,7 +275,8 @@ private:
     Plato::Scalar mEffectiveConductivity = 1.0; /*!< effective conductivity */
     Plato::Scalar mStabilizationMultiplier = 0.0; /*!< stabilization scalar multiplier */
     Plato::Scalar mThermalDiffusivityRatio = 1.0; /*!< thermal diffusivity ratio, e.g. solid diffusivity / fluid diffusivity */
-    Plato::Scalar mThermalDiffusivityPenaltyExponent = 3.0; /*!< exponent used for internal flux penalty model */
+    Plato::Scalar mDiffusiveTermPenaltyExponent = 3.0; /*!< penalty model exponent used for diffusive term */
+    Plato::Scalar mConvectiveTermPenaltyExponent = 3.0; /*!< penalty model exponent used for convective term */
 
     Plato::DataMap& mDataMap; /*!< output database */
     const Plato::SpatialDomain& mSpatialDomain; /*!< spatial domain metadata */
@@ -359,7 +360,8 @@ public:
         auto tEffConductivity = mEffectiveConductivity;
         auto tStabilizationMultiplier = mStabilizationMultiplier;
         auto tThermalDiffusivityRatio = mThermalDiffusivityRatio;
-        auto tThermalDiffusivityPenaltyExponent = mThermalDiffusivityPenaltyExponent;
+        auto tDiffusiveTermPenaltyExponent = mDiffusiveTermPenaltyExponent;
+        auto tConvectiveTermPenaltyExponent = mConvectiveTermPenaltyExponent;
 
         auto tCubWeight = mCubatureRule.getCubWeight();
         auto tBasisFunctions = mCubatureRule.getBasisFunctions();
@@ -370,7 +372,7 @@ public:
 
             // 1. Penalize diffusivity ratio with element density
             ControlT tPenalizedDiffusivityRatio = Plato::Fluids::penalize_thermal_diffusivity<mNumNodesPerCell>
-                (aCellOrdinal, tThermalDiffusivityRatio, tThermalDiffusivityPenaltyExponent, tControlWS);
+                (aCellOrdinal, tThermalDiffusivityRatio, tDiffusiveTermPenaltyExponent, tControlWS);
             ControlT tPenalizedEffConductivity = tEffConductivity * tPenalizedDiffusivityRatio;
 
             // 2. add current diffusive force contribution to residual, i.e. R += \theta_3 K T^{n+1},
@@ -387,16 +389,19 @@ public:
             Plato::Fluids::calculate_flux_divergence<mNumNodesPerCell, mNumSpatialDims>
                 (aCellOrdinal, tGradient, tCellVolume, tPrevThermalFlux, aResultWS, -tMultiplierControlTwoT);
 
-            // 4. add current convective force contribution to residual, i.e. R += C(u^{n+1}) T^n
+            // 4. add current convective force contribution to residual, i.e. R += \beta_{\rho} * C(u^{n+1}) T^n
             tIntrplVectorField(aCellOrdinal, tBasisFunctions, tCurVelWS, tCurVelGP);
             Plato::Fluids::calculate_convective_forces<mNumNodesPerCell, mNumSpatialDims>
                 (aCellOrdinal, tGradient, tCurVelGP, tPrevTempWS, tConvection);
+            ControlT tAveragedCellDensity = Plato::cell_density<mNumNodesPerCell>(aCellOrdinal, tControlWS);
+            ControlT tPenalizedAvgCellDensity = pow(tAveragedCellDensity, tConvectiveTermPenaltyExponent);
             Plato::Fluids::integrate_scalar_field<mNumTempDofsPerCell>
-                (aCellOrdinal, tBasisFunctions, tCellVolume, tConvection, aResultWS, 1.0);
+                (aCellOrdinal, tBasisFunctions, tCellVolume, tConvection, aResultWS, tPenalizedAvgCellDensity);
             Plato::blas2::scale<mNumDofsPerCell>(aCellOrdinal, tCriticalTimeStep(0), aResultWS);
 
-            // 5. add stabilizing force contribution to residual, i.e. R += \alpha_{stab} * C_u(u^{n+1}) T^n
-            auto tScalar = tStabilizationMultiplier * static_cast<Plato::Scalar>(0.5) * tCriticalTimeStep(0) * tCriticalTimeStep(0);
+            // 5. add stabilizing force contribution to residual, i.e. R += \alpha_{stab} * \beta_{\rho} * C_u(u^{n+1}) T^n
+            ControlT tScalar = tStabilizationMultiplier * tPenalizedAvgCellDensity * 
+                static_cast<Plato::Scalar>(0.5) * tCriticalTimeStep(0) * tCriticalTimeStep(0);
             Plato::Fluids::integrate_stabilizing_scalar_forces<mNumNodesPerCell, mNumSpatialDims>
                 (aCellOrdinal, tCellVolume, tGradient, tCurVelGP, tConvection, aResultWS, tScalar);
 
@@ -455,7 +460,8 @@ private:
             if (tEnergyParamList.isSublist("Penalty Function"))
             {
                 auto tPenaltyFuncList = tEnergyParamList.sublist("Penalty Function");
-                mThermalDiffusivityPenaltyExponent = tPenaltyFuncList.get<Plato::Scalar>("Thermal Diffusion Penalty Exponent", 3.0);
+                mDiffusiveTermPenaltyExponent = tPenaltyFuncList.get<Plato::Scalar>("Diffusive Term Penalty Exponent", 3.0);
+                mConvectiveTermPenaltyExponent = tPenaltyFuncList.get<Plato::Scalar>("Convective Term Penalty Exponent", 3.0);
             }
         }
     }

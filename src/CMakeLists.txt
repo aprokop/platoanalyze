@@ -175,6 +175,7 @@ if(HYPERBOLIC)
   set(ANALYZE_SOURCES ${ANALYZE_SOURCES}
     AbstractVolumetricSource.cpp
     hyperbolic/BrinkmanForces.cpp
+    hyperbolic/CriterionVolume.cpp
     hyperbolic/ThermalBuoyancy.cpp
     hyperbolic/PressureResidual.cpp
     hyperbolic/CriterionFlowRate.cpp
@@ -190,18 +191,19 @@ if(HYPERBOLIC)
     hyperbolic/AbstractHyperbolicLinearStress.cpp
     hyperbolic/AbstractScalarFunction.cpp
     hyperbolic/AbstractVectorFunction.cpp
-    hyperbolic/AverageSurfacePressure.cpp
-    hyperbolic/AverageSurfaceTemperature.cpp
     hyperbolic/VelocityCorrectorResidual.cpp
     hyperbolic/VelocityPredictorResidual.cpp
     hyperbolic/CriterionThermalCompliance.cpp
     hyperbolic/FluidsUniformThermalSource.cpp
+    hyperbolic/CriterionSurfaceThermalFlux.cpp
     hyperbolic/FluidsWeightedScalarFunction.cpp
     hyperbolic/HyperbolicLinearStress.cpp
     hyperbolic/HyperbolicLinearStressFactory.cpp
     hyperbolic/HyperbolicScalarFunctionFactory.cpp
     hyperbolic/HyperbolicPhysicsScalarFunction.cpp
+    hyperbolic/CriterionMeanSurfacePressure.cpp
     hyperbolic/FluidsLeastSquaresScalarFunction.cpp
+    hyperbolic/CriterionMeanSurfaceTemperature.cpp
     hyperbolic/FluidsStabilizedUniformThermalSource.cpp
   )
 

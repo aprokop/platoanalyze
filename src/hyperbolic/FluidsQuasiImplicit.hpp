@@ -70,6 +70,7 @@ private:
     Plato::Scalar mTemperatureTolerance = 1e-8; /*!< temperature solver stopping tolerance */
     Plato::Scalar mSteadyStateTolerance = 1e-5; /*!< steady-state stopping tolerance */
     Plato::Scalar mTimeStepSafetyFactor = 0.7; /*!< safety factor applied to stable time step */
+    Plato::Scalar mCriticalInitialTimeStep = -1.0; /*!< initial critical time step, the default value is negative (i.e. disabled time step) */
     Plato::Scalar mCriticalTimeStepDamping = 1.0; /*!< critical time step damping, positive number between epsilon and 1.0, where epsilon is usually taken to be 1e-3 or 1e-4 if needed */
     Plato::Scalar mCriticalThermalDiffusivity = 1.0; /*!< fluid thermal diffusivity - used to calculate stable time step */
     Plato::Scalar mCriticalKinematicViscocity = 1.0; /*!< fluid kinematic viscocity - used to calculate stable time step */
@@ -865,6 +866,7 @@ private:
             mTimeStepDamping = tTimeIntegration.get<Plato::Scalar>("Time Step Damping", 1.0);
             mTimeStepSafetyFactor = tTimeIntegration.get<Plato::Scalar>("Safety Factor", 0.7);
             mCriticalTimeStepDamping = tTimeIntegration.get<Plato::Scalar>("Critical Time Step Damping", 1.0);
+            mCriticalInitialTimeStep = tTimeIntegration.get<Plato::Scalar>("Critical Initial Time Step", -1.0);
         }
     }
 
@@ -1251,16 +1253,30 @@ private:
     initialCriticalTimeStep
     (const Plato::Primal & aPrimal)
     {
-        Plato::ScalarVector tBcValues;
-        Plato::LocalOrdinalVector tBcDofs;
-        mVelocityEssentialBCs.get(tBcDofs, tBcValues);
+        if (mCriticalInitialTimeStep > static_cast<Plato::Scalar>(0.0))
+        {
+            // User-provided initial critical time step
+            Plato::ScalarVector tCriticalTimeStep("critical time step", 1);
+            auto tHostCriticalTimeStep = Kokkos::create_mirror(tCriticalTimeStep);
+            tHostCriticalTimeStep(0) = mCriticalInitialTimeStep;
+            mCriticalTimeStepHistory.push_back(tHostCriticalTimeStep(0));
+            Kokkos::deep_copy(tCriticalTimeStep, tHostCriticalTimeStep);
+            return tCriticalTimeStep;
+        }
+        else
+        {
+            // Solver-computed initial critical time step
+            Plato::ScalarVector tBcValues;
+            Plato::LocalOrdinalVector tBcDofs;
+            mVelocityEssentialBCs.get(tBcDofs, tBcValues);
 
-        auto tPreviousVelocity = aPrimal.vector("previous velocity");
-        Plato::ScalarVector tInitialVelocity("initial velocity", tPreviousVelocity.size());
-        Plato::blas1::update(1.0, tPreviousVelocity, 0.0, tInitialVelocity);
-        Plato::enforce_boundary_condition(tBcDofs, tBcValues, tInitialVelocity);
-        auto tCriticalTimeStep = this->criticalTimeStep(aPrimal, tInitialVelocity);
-        return tCriticalTimeStep;
+            auto tPreviousVelocity = aPrimal.vector("previous velocity");
+            Plato::ScalarVector tInitialVelocity("initial velocity", tPreviousVelocity.size());
+            Plato::blas1::update(1.0, tPreviousVelocity, 0.0, tInitialVelocity);
+            Plato::enforce_boundary_condition(tBcDofs, tBcValues, tInitialVelocity);
+            auto tCriticalTimeStep = this->criticalTimeStep(aPrimal, tInitialVelocity);
+            return tCriticalTimeStep;
+        }
     }
 
     /******************************************************************************//**
