@@ -1,4 +1,4 @@
-<p align="center"><img src="https://github.com/platoengine/platoengine/blob/master/figures/plato_logo_simple.png" width="400"/></p>
+<p align="center"><img src="https://github.com/platoengine/platoengine/blob/release-v0.1.0/figures/plato_logo_simple.png" width="400"/></p>
 
 # Plato Analyze
 Fast physics with gradients for multidisciplinary analysis and optimization
