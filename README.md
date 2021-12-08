@@ -5,4 +5,4 @@ Performance portable finite element solver for fast physics with gradients for o
 
 
 ## Building [Plato Analyze](https://github.com/platoengine/platoanalyze)
-Please see the [Wiki](https://github.com/platoengine/platoengine/wiki/Spack-Build-Instructions-develop) for more information on how to build Plato Analyze.
+Please see the [Wiki](https://github.com/platoengine/platoengine/wiki/Plato-App) for more information on how to build Plato Analyze.
