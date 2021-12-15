@@ -646,11 +646,7 @@ MatrixMinusMatrix(      Teuchos::RCP<Plato::CrsMatrixType> & aInMatrixOne,
       tOutRowMap
     );
 
-#ifdef TRILINOS_ROL_BRANCH
     auto t_nnz = tAddHandle->get_c_nnz();
-#else
-    auto t_nnz = tAddHandle->get_max_result_nnz();
-#endif
 
     OrdinalView tOutColMap("output graph", t_nnz);
     ScalarView  tOutValues("output values", t_nnz);
