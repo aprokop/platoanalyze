@@ -100,10 +100,6 @@ ELSE()
   MESSAGE(FATAL_ERROR "Cannot locate the executable for vtkdiff, exiting")
 ENDIF()
 
-IF( TRILINOS_ROL_BRANCH )
-  ADD_DEFINITIONS(-DTRILINOS_ROL_BRANCH)
-ENDIF()
-
 # DAI: omega_h2 has a vtkdiff which by default compares all timesteps.
 # old omega_h's vtkdiff only compared one timestep.
 # at the time of transition, we will keep comparing just one time step
