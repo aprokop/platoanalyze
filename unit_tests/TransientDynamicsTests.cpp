@@ -2362,3 +2362,519 @@ TEUCHOS_UNIT_TEST( TransientMechanicsSolverTests, UFormAndAFormEquivalenceWithTi
   }
 
 }
+
+TEUCHOS_UNIT_TEST( TransientDynamicsOutputTests, OutputDefaultNumberOfSteps )
+{
+  // create comm
+  //
+  MPI_Comm myComm;
+  MPI_Comm_dup(MPI_COMM_WORLD, &myComm);
+  Plato::Comm::Machine tMachine(myComm);
+
+  // create test mesh
+  //
+  constexpr int cMeshWidth=1;
+  constexpr int cSpaceDim=3;
+  auto tMesh = PlatoUtestHelpers::getBoxMesh(cSpaceDim, cMeshWidth);
+
+  // create mesh sets
+  //
+  Omega_h::Assoc tAssoc = Omega_h::get_box_assoc(cSpaceDim);
+  Omega_h::MeshSets tMeshSets = Omega_h::invert(&(*tMesh), tAssoc);
+
+  // create input for problem
+  //
+  Teuchos::RCP<Teuchos::ParameterList> tInputParams =
+    Teuchos::getParametersFromXmlString(
+    "<ParameterList name='Plato Problem'>                                      \n"
+    "  <Parameter name='PDE Constraint' type='string' value='Hyperbolic'/>     \n"
+    "  <Parameter name='Physics' type='string' value='Mechanical'/>            \n"
+    "  <Parameter name='Self-Adjoint' type='bool' value='false'/>              \n"
+    "  <ParameterList name='Hyperbolic'>                                       \n"
+    "    <ParameterList name='Penalty Function'>                               \n"
+    "      <Parameter name='Exponent' type='double' value='1.0'/>              \n"
+    "      <Parameter name='Minimum Value' type='double' value='0.0'/>         \n"
+    "      <Parameter name='Type' type='string' value='SIMP'/>                 \n"
+    "    </ParameterList>                                                      \n"
+    "  </ParameterList>                                                        \n"
+    "  <ParameterList name='Spatial Model'>                                     \n"
+    "    <ParameterList name='Domains'>                                         \n"
+    "      <ParameterList name='Design Volume'>                                 \n"
+    "        <Parameter name='Element Block' type='string' value='body'/>       \n"
+    "        <Parameter name='Material Model' type='string' value='Alyoominium'/>\n"
+    "      </ParameterList>                                                     \n"
+    "    </ParameterList>                                                       \n"
+    "  </ParameterList>                                                         \n"
+    "  <ParameterList name='Material Models'>                                  \n"
+    "    <ParameterList name='Alyoominium'>                                    \n"
+    "      <ParameterList name='Isotropic Linear Elastic'>                       \n"
+    "        <Parameter name='Mass Density' type='double' value='2.7'/>          \n"
+    "        <Parameter  name='Poissons Ratio' type='double' value='0.36'/>      \n"
+    "        <Parameter  name='Youngs Modulus' type='double' value='68.0e10'/>   \n"
+    "      </ParameterList>                                                      \n"
+    "    </ParameterList>                                                        \n"
+    "  </ParameterList>                                                        \n"
+    "  <ParameterList name='Time Integration'>                                 \n"
+    "    <Parameter name='Newmark Gamma' type='double' value='0.5'/>           \n"
+    "    <Parameter name='Newmark Beta' type='double' value='0.25'/>           \n"
+    "    <Parameter name='Number Time Steps' type='int' value='10'/>            \n"
+    "    <Parameter name='Time Step' type='double' value='1.0e-7'/>            \n"
+    "  </ParameterList>                                                        \n"
+    "  <ParameterList  name='State Essential Boundary Conditions'>                     \n"
+    "    <ParameterList  name='x+ Applied Displacement'>            \n"
+    "      <Parameter name='Type'   type='string'        value='Time Dependent'/>     \n"
+    "      <Parameter name='Index'  type='int'           value='0'/>     \n"
+    "      <Parameter name='Sides'  type='string'        value='x+'/>          \n"
+    "      <Parameter name='Function' type='string' value='w=2e-6; p=0.01; pi=3.14159264; p*sin(pi*t/w)'/> \n"
+    "    </ParameterList>                                                      \n"
+    "  </ParameterList>                                                        \n"
+    "  <ParameterList name='Linear Solver'>                              \n"
+    "    <Parameter name='Solver Stack' type='string' value='Epetra'/>        \n"
+    "    <Parameter name='Display Iterations' type='int' value='0'/>     \n"
+    "    <Parameter name='Iterations' type='int' value='50'/>            \n"
+    "    <Parameter name='Tolerance' type='double' value='1e-14'/>       \n"
+    "  </ParameterList>                                                  \n"
+    "</ParameterList>                                                          \n"
+  );
+
+  // construct problem
+  //
+  auto tHyperbolicProblem = 
+    std::make_unique<Plato::HyperbolicProblem<Plato::Hyperbolic::Mechanics<cSpaceDim>>>
+    (*tMesh, tMeshSets, *tInputParams, tMachine);
+
+  // create control
+  //
+  int tNumDofs = cSpaceDim*tMesh->nverts();
+  Plato::ScalarVector tControl("control", tNumDofs);
+  Plato::blas1::fill(1.0, tControl);
+
+  // solve problem
+  //
+  auto tFullSolution = tHyperbolicProblem->solution(tControl);
+
+  // get sized solutions
+  //
+  auto tSizedSolution = tHyperbolicProblem->sizeOutputSolution();
+  auto tSizedDisplacements = tSizedSolution.get("State");
+  auto tSizedVelocities = tSizedSolution.get("StateDot");
+  auto tSizedAccelerations = tSizedSolution.get("StateDotDot");
+
+  // get full solutions
+  //
+  auto tFullDisplacements = tFullSolution.get("State");
+  auto tFullVelocities = tFullSolution.get("StateDot");
+  auto tFullAccelerations = tFullSolution.get("StateDotDot");
+
+  // test sizes
+  //
+  TEST_EQUALITY(tSizedDisplacements.extent(0), tFullDisplacements.extent(0));
+  TEST_EQUALITY(tSizedVelocities.extent(0), tFullVelocities.extent(0));
+  TEST_EQUALITY(tSizedAccelerations.extent(0), tFullAccelerations.extent(0));
+
+  // test displacements
+  //
+  for(int iStep=0; iStep<int(tSizedDisplacements.extent(0)); iStep++)
+  {
+    auto tSizedDisplacement = Kokkos::subview(tSizedDisplacements, /*tStepIndex*/iStep, Kokkos::ALL());
+    auto tSizedDisplacement_host = Kokkos::create_mirror_view( tSizedDisplacement );
+    Kokkos::deep_copy( tSizedDisplacement_host, tSizedDisplacement );
+
+    auto tFullDisplacement = Kokkos::subview(tFullDisplacements, /*tStepIndex*/iStep, Kokkos::ALL());
+    auto tFullDisplacement_host = Kokkos::create_mirror_view( tFullDisplacement );
+    Kokkos::deep_copy( tFullDisplacement_host, tFullDisplacement );
+
+    for(int iNode=0; iNode<int(tFullDisplacement_host.size()); iNode++){
+      TEST_FLOATING_EQUALITY(
+        tSizedDisplacement_host[iNode],
+        tFullDisplacement_host[iNode], 1.0e-8);
+    }
+  }
+
+  // test velocities
+  //
+  for(int iStep=0; iStep<int(tSizedVelocities.extent(0)); iStep++)
+  {
+    auto tSizedVelocity = Kokkos::subview(tSizedVelocities, /*tStepIndex*/iStep, Kokkos::ALL());
+    auto tSizedVelocity_host = Kokkos::create_mirror_view( tSizedVelocity );
+    Kokkos::deep_copy( tSizedVelocity_host, tSizedVelocity );
+
+    auto tFullVelocity = Kokkos::subview(tFullVelocities, /*tStepIndex*/iStep, Kokkos::ALL());
+    auto tFullVelocity_host = Kokkos::create_mirror_view( tFullVelocity );
+    Kokkos::deep_copy( tFullVelocity_host, tFullVelocity );
+
+    for(int iNode=0; iNode<int(tFullVelocity_host.size()); iNode++){
+      TEST_FLOATING_EQUALITY(
+        tSizedVelocity_host[iNode],
+        tFullVelocity_host[iNode], 1.0e-8);
+    }
+  }
+
+  // test accelerations
+  //
+  for(int iStep=0; iStep<int(tSizedAccelerations.extent(0)); iStep++)
+  {
+    auto tSizedAcceleration = Kokkos::subview(tSizedAccelerations, /*tStepIndex*/iStep, Kokkos::ALL());
+    auto tSizedAcceleration_host = Kokkos::create_mirror_view( tSizedAcceleration );
+    Kokkos::deep_copy( tSizedAcceleration_host, tSizedAcceleration );
+
+    auto tFullAcceleration = Kokkos::subview(tFullAccelerations, /*tStepIndex*/iStep, Kokkos::ALL());
+    auto tFullAcceleration_host = Kokkos::create_mirror_view( tFullAcceleration );
+    Kokkos::deep_copy( tFullAcceleration_host, tFullAcceleration );
+
+    for(int iNode=0; iNode<int(tFullAcceleration_host.size()); iNode++){
+      TEST_FLOATING_EQUALITY(
+        tSizedAcceleration_host[iNode],
+        tFullAcceleration_host[iNode], 1.0e-8);
+    }
+  }
+
+}
+
+TEUCHOS_UNIT_TEST( TransientDynamicsOutputTests, OutputRequestedNumberOfSteps )
+{
+  // create comm
+  //
+  MPI_Comm myComm;
+  MPI_Comm_dup(MPI_COMM_WORLD, &myComm);
+  Plato::Comm::Machine tMachine(myComm);
+
+  // create test mesh
+  //
+  constexpr int cMeshWidth=2;
+  constexpr int cSpaceDim=3;
+  auto tMesh = PlatoUtestHelpers::getBoxMesh(cSpaceDim, cMeshWidth);
+
+  // create mesh sets
+  //
+  Omega_h::Assoc tAssoc = Omega_h::get_box_assoc(cSpaceDim);
+  Omega_h::MeshSets tMeshSets = Omega_h::invert(&(*tMesh), tAssoc);
+
+  // create input for problem
+  //
+  Teuchos::RCP<Teuchos::ParameterList> tInputParams =
+    Teuchos::getParametersFromXmlString(
+    "<ParameterList name='Plato Problem'>                                      \n"
+    "  <Parameter name='PDE Constraint' type='string' value='Hyperbolic'/>     \n"
+    "  <Parameter name='Physics' type='string' value='Mechanical'/>            \n"
+    "  <Parameter name='Self-Adjoint' type='bool' value='false'/>              \n"
+    "  <ParameterList name='Hyperbolic'>                                       \n"
+    "    <ParameterList name='Penalty Function'>                               \n"
+    "      <Parameter name='Exponent' type='double' value='1.0'/>              \n"
+    "      <Parameter name='Minimum Value' type='double' value='0.0'/>         \n"
+    "      <Parameter name='Type' type='string' value='SIMP'/>                 \n"
+    "    </ParameterList>                                                      \n"
+    "  </ParameterList>                                                        \n"
+    "  <ParameterList name='Spatial Model'>                                     \n"
+    "    <ParameterList name='Domains'>                                         \n"
+    "      <ParameterList name='Design Volume'>                                 \n"
+    "        <Parameter name='Element Block' type='string' value='body'/>       \n"
+    "        <Parameter name='Material Model' type='string' value='Alyoominium'/>\n"
+    "      </ParameterList>                                                     \n"
+    "    </ParameterList>                                                       \n"
+    "  </ParameterList>                                                         \n"
+    "  <ParameterList name='Material Models'>                                  \n"
+    "    <ParameterList name='Alyoominium'>                                    \n"
+    "      <ParameterList name='Isotropic Linear Elastic'>                       \n"
+    "        <Parameter name='Mass Density' type='double' value='2.7'/>          \n"
+    "        <Parameter  name='Poissons Ratio' type='double' value='0.36'/>      \n"
+    "        <Parameter  name='Youngs Modulus' type='double' value='68.0e10'/>   \n"
+    "      </ParameterList>                                                      \n"
+    "    </ParameterList>                                                        \n"
+    "  </ParameterList>                                                        \n"
+    "  <ParameterList name='Time Integration'>                                 \n"
+    "    <Parameter name='Newmark Gamma' type='double' value='0.5'/>           \n"
+    "    <Parameter name='Newmark Beta' type='double' value='0.25'/>           \n"
+    "    <Parameter name='Number Time Steps' type='int' value='10'/>            \n"
+    "    <Parameter name='Number Output Steps' type='int' value='3'/>            \n"
+    "    <Parameter name='Time Step' type='double' value='1.0e-7'/>            \n"
+    "  </ParameterList>                                                        \n"
+    "  <ParameterList  name='State Essential Boundary Conditions'>                     \n"
+    "    <ParameterList  name='x+ Applied Displacement'>            \n"
+    "      <Parameter name='Type'   type='string'        value='Time Dependent'/>     \n"
+    "      <Parameter name='Index'  type='int'           value='0'/>     \n"
+    "      <Parameter name='Sides'  type='string'        value='x+'/>          \n"
+    "      <Parameter name='Function' type='string' value='w=2e-6; p=0.01; pi=3.14159264; p*sin(pi*t/w)'/> \n"
+    "    </ParameterList>                                                      \n"
+    "  </ParameterList>                                                        \n"
+    "  <ParameterList name='Linear Solver'>                              \n"
+    "    <Parameter name='Solver Stack' type='string' value='Epetra'/>        \n"
+    "    <Parameter name='Display Iterations' type='int' value='0'/>     \n"
+    "    <Parameter name='Iterations' type='int' value='50'/>            \n"
+    "    <Parameter name='Tolerance' type='double' value='1e-14'/>       \n"
+    "  </ParameterList>                                                  \n"
+    "</ParameterList>                                                          \n"
+  );
+
+  // construct problem
+  //
+  auto tHyperbolicProblem = 
+    std::make_unique<Plato::HyperbolicProblem<Plato::Hyperbolic::Mechanics<cSpaceDim>>>
+    (*tMesh, tMeshSets, *tInputParams, tMachine);
+
+  // create control
+  //
+  int tNumDofs = cSpaceDim*tMesh->nverts();
+  Plato::ScalarVector tControl("control", tNumDofs);
+  Plato::blas1::fill(1.0, tControl);
+
+  // solve problem
+  //
+  auto tFullSolution = tHyperbolicProblem->solution(tControl);
+
+  // get sized solutions
+  //
+  auto tSizedSolution = tHyperbolicProblem->sizeOutputSolution();
+  auto tSizedDisplacements = tSizedSolution.get("State");
+  auto tSizedVelocities = tSizedSolution.get("StateDot");
+  auto tSizedAccelerations = tSizedSolution.get("StateDotDot");
+
+  // get full solutions
+  //
+  auto tFullDisplacements = tFullSolution.get("State");
+  auto tFullVelocities = tFullSolution.get("StateDot");
+  auto tFullAccelerations = tFullSolution.get("StateDotDot");
+
+  // test sizes
+  //
+  TEST_EQUALITY(tSizedDisplacements.extent(0), 5);
+  TEST_EQUALITY(tSizedVelocities.extent(0), 5);
+  TEST_EQUALITY(tSizedAccelerations.extent(0), 5);
+
+  int tStride = 3;
+  int tMaxIndex = tFullDisplacements.extent(0) - 1;
+
+  // test displacements
+  //
+  for(int iStep=0; iStep<int(tSizedDisplacements.extent(0)); iStep++)
+  {
+    auto tStridedIndex = ( tStride * iStep > tMaxIndex ) ? tMaxIndex : tStride*iStep;
+    auto tSizedDisplacement = Kokkos::subview(tSizedDisplacements, /*tStepIndex*/iStep, Kokkos::ALL());
+    auto tSizedDisplacement_host = Kokkos::create_mirror_view( tSizedDisplacement );
+    Kokkos::deep_copy( tSizedDisplacement_host, tSizedDisplacement );
+
+    auto tFullDisplacement = Kokkos::subview(tFullDisplacements, /*tStepIndex*/tStridedIndex, Kokkos::ALL());
+    auto tFullDisplacement_host = Kokkos::create_mirror_view( tFullDisplacement );
+    Kokkos::deep_copy( tFullDisplacement_host, tFullDisplacement );
+
+    for(int iNode=0; iNode<int(tFullDisplacement_host.size()); iNode++){
+      TEST_FLOATING_EQUALITY(
+        tSizedDisplacement_host[iNode],
+        tFullDisplacement_host[iNode], 1.0e-8);
+    }
+  }
+
+  // test velocities
+  //
+  for(int iStep=0; iStep<int(tSizedVelocities.extent(0)); iStep++)
+  {
+    auto tStridedIndex = ( tStride * iStep > tMaxIndex ) ? tMaxIndex : tStride*iStep;
+    auto tSizedVelocity = Kokkos::subview(tSizedVelocities, /*tStepIndex*/iStep, Kokkos::ALL());
+    auto tSizedVelocity_host = Kokkos::create_mirror_view( tSizedVelocity );
+    Kokkos::deep_copy( tSizedVelocity_host, tSizedVelocity );
+
+    auto tFullVelocity = Kokkos::subview(tFullVelocities, /*tStepIndex*/tStridedIndex, Kokkos::ALL());
+    auto tFullVelocity_host = Kokkos::create_mirror_view( tFullVelocity );
+    Kokkos::deep_copy( tFullVelocity_host, tFullVelocity );
+
+    for(int iNode=0; iNode<int(tFullVelocity_host.size()); iNode++){
+      TEST_FLOATING_EQUALITY(
+        tSizedVelocity_host[iNode],
+        tFullVelocity_host[iNode], 1.0e-8);
+    }
+  }
+
+  // test accelerations
+  //
+  for(int iStep=0; iStep<int(tSizedAccelerations.extent(0)); iStep++)
+  {
+    auto tStridedIndex = ( tStride * iStep > tMaxIndex ) ? tMaxIndex : tStride*iStep;
+    auto tSizedAcceleration = Kokkos::subview(tSizedAccelerations, /*tStepIndex*/iStep, Kokkos::ALL());
+    auto tSizedAcceleration_host = Kokkos::create_mirror_view( tSizedAcceleration );
+    Kokkos::deep_copy( tSizedAcceleration_host, tSizedAcceleration );
+
+    auto tFullAcceleration = Kokkos::subview(tFullAccelerations, /*tStepIndex*/tStridedIndex, Kokkos::ALL());
+    auto tFullAcceleration_host = Kokkos::create_mirror_view( tFullAcceleration );
+    Kokkos::deep_copy( tFullAcceleration_host, tFullAcceleration );
+
+    for(int iNode=0; iNode<int(tFullAcceleration_host.size()); iNode++){
+      TEST_FLOATING_EQUALITY(
+        tSizedAcceleration_host[iNode],
+        tFullAcceleration_host[iNode], 1.0e-8);
+    }
+  }
+}
+
+TEUCHOS_UNIT_TEST( TransientDynamicsOutputTests, OutputRequestedNumberOfStepsWithoutRemainder )
+{
+  // create comm
+  //
+  MPI_Comm myComm;
+  MPI_Comm_dup(MPI_COMM_WORLD, &myComm);
+  Plato::Comm::Machine tMachine(myComm);
+
+  // create test mesh
+  //
+  constexpr int cMeshWidth=2;
+  constexpr int cSpaceDim=3;
+  auto tMesh = PlatoUtestHelpers::getBoxMesh(cSpaceDim, cMeshWidth);
+
+  // create mesh sets
+  //
+  Omega_h::Assoc tAssoc = Omega_h::get_box_assoc(cSpaceDim);
+  Omega_h::MeshSets tMeshSets = Omega_h::invert(&(*tMesh), tAssoc);
+
+  // create input for problem
+  //
+  Teuchos::RCP<Teuchos::ParameterList> tInputParams =
+    Teuchos::getParametersFromXmlString(
+    "<ParameterList name='Plato Problem'>                                      \n"
+    "  <Parameter name='PDE Constraint' type='string' value='Hyperbolic'/>     \n"
+    "  <Parameter name='Physics' type='string' value='Mechanical'/>            \n"
+    "  <Parameter name='Self-Adjoint' type='bool' value='false'/>              \n"
+    "  <ParameterList name='Hyperbolic'>                                       \n"
+    "    <ParameterList name='Penalty Function'>                               \n"
+    "      <Parameter name='Exponent' type='double' value='1.0'/>              \n"
+    "      <Parameter name='Minimum Value' type='double' value='0.0'/>         \n"
+    "      <Parameter name='Type' type='string' value='SIMP'/>                 \n"
+    "    </ParameterList>                                                      \n"
+    "  </ParameterList>                                                        \n"
+    "  <ParameterList name='Spatial Model'>                                     \n"
+    "    <ParameterList name='Domains'>                                         \n"
+    "      <ParameterList name='Design Volume'>                                 \n"
+    "        <Parameter name='Element Block' type='string' value='body'/>       \n"
+    "        <Parameter name='Material Model' type='string' value='Alyoominium'/>\n"
+    "      </ParameterList>                                                     \n"
+    "    </ParameterList>                                                       \n"
+    "  </ParameterList>                                                         \n"
+    "  <ParameterList name='Material Models'>                                  \n"
+    "    <ParameterList name='Alyoominium'>                                    \n"
+    "      <ParameterList name='Isotropic Linear Elastic'>                       \n"
+    "        <Parameter name='Mass Density' type='double' value='2.7'/>          \n"
+    "        <Parameter  name='Poissons Ratio' type='double' value='0.36'/>      \n"
+    "        <Parameter  name='Youngs Modulus' type='double' value='68.0e10'/>   \n"
+    "      </ParameterList>                                                      \n"
+    "    </ParameterList>                                                        \n"
+    "  </ParameterList>                                                        \n"
+    "  <ParameterList name='Time Integration'>                                 \n"
+    "    <Parameter name='Newmark Gamma' type='double' value='0.5'/>           \n"
+    "    <Parameter name='Newmark Beta' type='double' value='0.25'/>           \n"
+    "    <Parameter name='Number Time Steps' type='int' value='10'/>            \n"
+    "    <Parameter name='Number Output Steps' type='int' value='5'/>            \n"
+    "    <Parameter name='Time Step' type='double' value='1.0e-7'/>            \n"
+    "  </ParameterList>                                                        \n"
+    "  <ParameterList  name='State Essential Boundary Conditions'>                     \n"
+    "    <ParameterList  name='x+ Applied Displacement'>            \n"
+    "      <Parameter name='Type'   type='string'        value='Time Dependent'/>     \n"
+    "      <Parameter name='Index'  type='int'           value='0'/>     \n"
+    "      <Parameter name='Sides'  type='string'        value='x+'/>          \n"
+    "      <Parameter name='Function' type='string' value='w=2e-6; p=0.01; pi=3.14159264; p*sin(pi*t/w)'/> \n"
+    "    </ParameterList>                                                      \n"
+    "  </ParameterList>                                                        \n"
+    "  <ParameterList name='Linear Solver'>                              \n"
+    "    <Parameter name='Solver Stack' type='string' value='Epetra'/>        \n"
+    "    <Parameter name='Display Iterations' type='int' value='0'/>     \n"
+    "    <Parameter name='Iterations' type='int' value='50'/>            \n"
+    "    <Parameter name='Tolerance' type='double' value='1e-14'/>       \n"
+    "  </ParameterList>                                                  \n"
+    "</ParameterList>                                                          \n"
+  );
+
+  // construct problem
+  //
+  auto tHyperbolicProblem = 
+    std::make_unique<Plato::HyperbolicProblem<Plato::Hyperbolic::Mechanics<cSpaceDim>>>
+    (*tMesh, tMeshSets, *tInputParams, tMachine);
+
+  // create control
+  //
+  int tNumDofs = cSpaceDim*tMesh->nverts();
+  Plato::ScalarVector tControl("control", tNumDofs);
+  Plato::blas1::fill(1.0, tControl);
+
+  // solve problem
+  //
+  auto tFullSolution = tHyperbolicProblem->solution(tControl);
+
+  // get sized solutions
+  //
+  auto tSizedSolution = tHyperbolicProblem->sizeOutputSolution();
+  auto tSizedDisplacements = tSizedSolution.get("State");
+  auto tSizedVelocities = tSizedSolution.get("StateDot");
+  auto tSizedAccelerations = tSizedSolution.get("StateDotDot");
+
+  // get full solutions
+  //
+  auto tFullDisplacements = tFullSolution.get("State");
+  auto tFullVelocities = tFullSolution.get("StateDot");
+  auto tFullAccelerations = tFullSolution.get("StateDotDot");
+
+  // test sizes
+  //
+  TEST_EQUALITY(tSizedDisplacements.extent(0), 6);
+  TEST_EQUALITY(tSizedVelocities.extent(0), 6);
+  TEST_EQUALITY(tSizedAccelerations.extent(0), 6);
+
+  int tStride = 2;
+  int tMaxIndex = tFullDisplacements.extent(0) - 1;
+
+  // test displacements
+  //
+  for(int iStep=0; iStep<int(tSizedDisplacements.extent(0)); iStep++)
+  {
+    auto tStridedIndex = ( tStride * iStep > tMaxIndex ) ? tMaxIndex : tStride*iStep;
+    auto tSizedDisplacement = Kokkos::subview(tSizedDisplacements, /*tStepIndex*/iStep, Kokkos::ALL());
+    auto tSizedDisplacement_host = Kokkos::create_mirror_view( tSizedDisplacement );
+    Kokkos::deep_copy( tSizedDisplacement_host, tSizedDisplacement );
+
+    auto tFullDisplacement = Kokkos::subview(tFullDisplacements, /*tStepIndex*/tStridedIndex, Kokkos::ALL());
+    auto tFullDisplacement_host = Kokkos::create_mirror_view( tFullDisplacement );
+    Kokkos::deep_copy( tFullDisplacement_host, tFullDisplacement );
+
+    for(int iNode=0; iNode<int(tFullDisplacement_host.size()); iNode++){
+      TEST_FLOATING_EQUALITY(
+        tSizedDisplacement_host[iNode],
+        tFullDisplacement_host[iNode], 1.0e-8);
+    }
+  }
+
+  // test velocities
+  //
+  for(int iStep=0; iStep<int(tSizedVelocities.extent(0)); iStep++)
+  {
+    auto tStridedIndex = ( tStride * iStep > tMaxIndex ) ? tMaxIndex : tStride*iStep;
+    auto tSizedVelocity = Kokkos::subview(tSizedVelocities, /*tStepIndex*/iStep, Kokkos::ALL());
+    auto tSizedVelocity_host = Kokkos::create_mirror_view( tSizedVelocity );
+    Kokkos::deep_copy( tSizedVelocity_host, tSizedVelocity );
+
+    auto tFullVelocity = Kokkos::subview(tFullVelocities, /*tStepIndex*/tStridedIndex, Kokkos::ALL());
+    auto tFullVelocity_host = Kokkos::create_mirror_view( tFullVelocity );
+    Kokkos::deep_copy( tFullVelocity_host, tFullVelocity );
+
+    for(int iNode=0; iNode<int(tFullVelocity_host.size()); iNode++){
+      TEST_FLOATING_EQUALITY(
+        tSizedVelocity_host[iNode],
+        tFullVelocity_host[iNode], 1.0e-8);
+    }
+  }
+
+  // test accelerations
+  //
+  for(int iStep=0; iStep<int(tSizedAccelerations.extent(0)); iStep++)
+  {
+    auto tStridedIndex = ( tStride * iStep > tMaxIndex ) ? tMaxIndex : tStride*iStep;
+    auto tSizedAcceleration = Kokkos::subview(tSizedAccelerations, /*tStepIndex*/iStep, Kokkos::ALL());
+    auto tSizedAcceleration_host = Kokkos::create_mirror_view( tSizedAcceleration );
+    Kokkos::deep_copy( tSizedAcceleration_host, tSizedAcceleration );
+
+    auto tFullAcceleration = Kokkos::subview(tFullAccelerations, /*tStepIndex*/tStridedIndex, Kokkos::ALL());
+    auto tFullAcceleration_host = Kokkos::create_mirror_view( tFullAcceleration );
+    Kokkos::deep_copy( tFullAcceleration_host, tFullAcceleration );
+
+    for(int iNode=0; iNode<int(tFullAcceleration_host.size()); iNode++){
+      TEST_FLOATING_EQUALITY(
+        tSizedAcceleration_host[iNode],
+        tFullAcceleration_host[iNode], 1.0e-8);
+    }
+  }
+}

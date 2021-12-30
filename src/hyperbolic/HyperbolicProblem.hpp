@@ -47,6 +47,9 @@ namespace Plato
         Plato::OrdinalType mNumSteps;
         Plato::Scalar      mTimeStep;
 
+        Plato::OrdinalType mOutputSteps;
+        Plato::OrdinalType mOutputStride;
+
         bool mSaveState;
 
         Criteria mCriteria;
@@ -114,6 +117,8 @@ namespace Plato
 
             allocateStateData();
 
+            parseOutput(aProblemParams);
+
             parseCriteria(aProblemParams);
 
             parseComputedFields(aProblemParams, aMesh);
@@ -163,6 +168,25 @@ namespace Plato
 
             mNumSteps = mIntegrator->getNumSteps();
             mTimeStep = mIntegrator->getTimeStep();
+        }
+
+        /******************************************************************************/
+        void parseOutput(
+          Teuchos::ParameterList & aProblemParams
+        )
+        /******************************************************************************/
+        {
+            mOutputSteps = mNumSteps;
+            mOutputStride = 1;
+
+            auto tIntegratorParams = aProblemParams.sublist("Time Integration");
+            if (tIntegratorParams.isType<int>("Number Output Steps"))
+            {
+                auto tNumberOutput = tIntegratorParams.get<int>("Number Output Steps");
+                mOutputStride = std::floor(mNumSteps/tNumberOutput);
+                auto tRemainder = mNumSteps % tNumberOutput;
+                mOutputSteps = (tRemainder > 0) ? tNumberOutput + 2 : tNumberOutput + 1;
+            }
         }
 
         /******************************************************************************/
@@ -302,7 +326,7 @@ namespace Plato
         /******************************************************************************/
         {
             auto tDataMap = getDataMap();
-            auto tSolution = getSolution();
+            auto tSolution = ( mOutputSteps < mNumSteps ) ? this->sizeOutputSolution() : this->getSolution();
             auto tSolutionOutput = mPDEConstraint.getSolutionStateOutputData(tSolution);
             Plato::universal_solution_output<SpatialDim>(aFilepath, tSolutionOutput, tDataMap, mSpatialModel.Mesh);
         }
@@ -1114,6 +1138,26 @@ namespace Plato
             }
 
             return t_dFdx;
+        }
+
+        Plato::Solutions sizeOutputSolution() const
+        {
+            Plato::Solutions tSolution(mPhysics, mPDE);
+            Plato::ScalarMultiVector tDisplacement("Displacement", mOutputSteps, mPDEConstraint.size());
+            Plato::ScalarMultiVector tVelocity("Velocity", mOutputSteps, mPDEConstraint.size());
+            Plato::ScalarMultiVector tAcceleration("Acceleration", mOutputSteps, mPDEConstraint.size());
+
+            auto tFullDisplacement = mDisplacement;
+            auto tFullVelocity = mVelocity;
+            auto tFullAcceleration = mAcceleration;
+            Plato::blas2::extract_dim0(mOutputStride, tFullDisplacement, tDisplacement);
+            Plato::blas2::extract_dim0(mOutputStride, tFullVelocity, tVelocity);
+            Plato::blas2::extract_dim0(mOutputStride, tFullAcceleration, tAcceleration);
+
+            tSolution.set("State", tDisplacement);
+            tSolution.set("StateDot", tVelocity);
+            tSolution.set("StateDotDot", tAcceleration);
+            return tSolution;
         }
 
         private:
