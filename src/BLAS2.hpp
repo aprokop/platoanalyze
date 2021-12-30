@@ -8,6 +8,7 @@
 
 #include "AnalyzeMacros.hpp"
 #include "PlatoStaticsTypes.hpp"
+#include "PlatoTypes.hpp"
 
 namespace Plato
 {
@@ -204,6 +205,38 @@ inline void extract(const Plato::OrdinalType& aNumOrdinal, const Plato::ScalarMu
     }
 }
 // function extract
+
+/******************************************************************************//**
+ * \brief Extract a sub 2D array from the second dimension of a full 2D array
+ *
+ * \tparam NumStride stride, e.g. number of time steps to skip
+ *
+ * \param [in] aFrom  input 2D array
+ * \param [out] aTo   extracted 2D sub-array
+ *
+ * aToVector(i,j) = aFromVector(i::NumStride,j)
+ *
+**********************************************************************************/
+inline void extract_dim0(const Plato::OrdinalType aStride, const Plato::ScalarMultiVector& aFrom, Plato::ScalarMultiVector& aTo)
+{
+    auto tFromDim0 = aFrom.extent(0);
+    auto tToDim0 = aTo.extent(0);
+
+    for(Plato::OrdinalType tIndexI = 0; tIndexI < tToDim0; tIndexI++)
+    {
+        auto tStridedIndexI = ( aStride * tIndexI > tFromDim0 - 1 ) ? tFromDim0 - 1 : aStride*tIndexI;
+
+        auto tToSubView = Kokkos::subview(aTo, tIndexI, Kokkos::ALL());
+        auto tFromSubView = Kokkos::subview(aFrom, tStridedIndexI, Kokkos::ALL());
+
+        auto tLength = tToSubView.extent(0);
+        Kokkos::parallel_for(Kokkos::RangePolicy<>(0, tLength), LAMBDA_EXPRESSION(const Plato::OrdinalType & aOrdinal)
+        {
+            tToSubView(aOrdinal) = tFromSubView(aOrdinal);
+        }, "extract strided indices");
+    }
+}
+// function extract_dim2
 
 /******************************************************************************//**
  * \brief Fill 2-D array with a given input value, \f$ X(i,j) = \alpha\ \forall\ i,j \f$ indices.
