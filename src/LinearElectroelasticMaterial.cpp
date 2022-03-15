@@ -21,6 +21,14 @@ LinearElectroelasticMaterial<1>()
     mCellStiffness(0,0)=c*(1.0-v);
     mCellPiezoelectricCoupling(0,0)=e33;
     mCellPermittivity(0,0)=p33;
+
+    if( paramList.isType<Plato::Scalar>("RayleighA") )  mRayleighA = paramList.get<Plato::Scalar>("RayleighA");
+    if( paramList.isType<Plato::Scalar>("RayleighB") )  mRayleighB = paramList.get<Plato::Scalar>("RayleighB");
+    if( paramList.isType<Plato::Scalar>("Mass Density") ){
+      mCellDensity = paramList.get<Plato::Scalar>("Mass Density");
+    } else {
+      mCellDensity = 1.0;
+    }
 }
 /******************************************************************************/
 template<>
@@ -51,6 +59,14 @@ LinearElectroelasticMaterial<2>()
 
     mCellPermittivity(0,0)=p11;
     mCellPermittivity(1,1)=p33;
+
+    if( paramList.isType<Plato::Scalar>("RayleighA") )  mRayleighA = paramList.get<Plato::Scalar>("RayleighA");
+    if( paramList.isType<Plato::Scalar>("RayleighB") )  mRayleighB = paramList.get<Plato::Scalar>("RayleighB");
+    if( paramList.isType<Plato::Scalar>("Mass Density") ){
+      mCellDensity = paramList.get<Plato::Scalar>("Mass Density");
+    } else {
+      mCellDensity = 1.0;
+    }
 }
 /******************************************************************************/
 template<>
@@ -87,6 +103,14 @@ LinearElectroelasticMaterial<3>()
     mCellPermittivity(0,0)=p11;
     mCellPermittivity(1,1)=p11;
     mCellPermittivity(2,2)=p33;
+
+    if( paramList.isType<Plato::Scalar>("RayleighA") )  mRayleighA = paramList.get<Plato::Scalar>("RayleighA");
+    if( paramList.isType<Plato::Scalar>("RayleighB") )  mRayleighB = paramList.get<Plato::Scalar>("RayleighB");
+    if( paramList.isType<Plato::Scalar>("Mass Density") ){
+      mCellDensity = paramList.get<Plato::Scalar>("Mass Density");
+    } else {
+      mCellDensity = 1.0;
+    }
 }
 
 } // namespace Plato 

@@ -26,14 +26,22 @@ namespace Plato {
     Plato::Matrix<SpatialDim, mNumVoigtTerms> mCellPiezoelectricCoupling;
     Plato::Matrix<SpatialDim, SpatialDim> mCellPermittivity;
 
-    Plato::Scalar mAlpha;
+    Plato::Scalar mCellDensity;
+    Plato::Scalar mRayleighA; // mass coefficient
+    Plato::Scalar mRayleighB; // stiffness coefficient
   
+    Plato::Scalar mAlpha;
+
   public:
     LinearElectroelasticMaterial();
     decltype(mCellStiffness)             getStiffnessMatrix()    const {return mCellStiffness;}
     decltype(mCellPiezoelectricCoupling) getPiezoMatrix()        const {return mCellPiezoelectricCoupling;}
     decltype(mCellPermittivity)          getPermittivityMatrix() const {return mCellPermittivity;}
     decltype(mAlpha)                     getAlpha()              const {return mAlpha;}
+    decltype(mCellDensity)               getMassDensity()        const {return mCellDensity;}
+    decltype(mRayleighA)                 getRayleighA()          const {return mRayleighA;}
+    decltype(mRayleighB)                 getRayleighB()          const {return mRayleighB;}
+
 };
 
 /******************************************************************************/

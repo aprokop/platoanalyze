@@ -277,6 +277,13 @@ create_electromechanical_problem
     }
     else
 #endif
+#ifdef PLATO_HYPERBOLIC
+    if (tLowerPDE == "hyperbolic")
+    {
+        return std::make_shared<HyperbolicProblem<::Plato::Hyperbolic::Electromechanics<SpatialDim>>>(aMesh, aPlatoProb, aMachine);
+    }
+    else
+#endif
     {
         ANALYZE_THROWERR(std::string("'PDE Constraint' of type '") + tLowerPDE + "' is not supported.");
     }

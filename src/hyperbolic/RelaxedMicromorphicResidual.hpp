@@ -71,8 +71,11 @@ class RelaxedMicromorphicResidual :
 
     bool mRayleighDamping;
 
-    Teuchos::RCP<Plato::MicromorphicLinearElasticMaterial<SpaceDim>> mMaterialModel;
-    Teuchos::RCP<Plato::MicromorphicInertiaMaterial<SpaceDim>>       mInertiaModel;
+    using MaterialType = Plato::MicromorphicLinearElasticMaterial<SpaceDim>;
+    Teuchos::RCP<MaterialType> mMaterialModel;
+
+    using InertiaMaterialType = Plato::MicromorphicInertiaMaterial<SpaceDim>;
+    Teuchos::RCP<InertiaMaterialType> mInertiaModel;
 
     std::vector<std::string> mPlottable;
 
@@ -192,7 +195,7 @@ class RelaxedMicromorphicResidual :
         Plato::Scalar tLength = pow(tMinVolume, 1.0/SpaceDim);
 
         auto tStiffnessMatrixCe = mMaterialModel->getStiffnessMatrixCe();
-        auto tMassDensity     = mInertiaModel->getMacroscopicMassDensity();
+        auto tMassDensity     = mInertiaModel->getMassDensity();
         auto tSoundSpeed = sqrt(tStiffnessMatrixCe(0,0)/tMassDensity);
 
         return 2.0*tSoundSpeed/tLength;
@@ -262,7 +265,7 @@ class RelaxedMicromorphicResidual :
       Plato::MicromorphicKinetics<SpaceDim>   tKinetics(mMaterialModel);
       Plato::MicromorphicKinetics<SpaceDim>   tInertiaKinetics(mInertiaModel);
       Plato::FullStressDivergence<SpaceDim>   tComputeStressDivergence;
-      Plato::InertialContent<SpaceDim>        tInertialContent(mInertiaModel);
+      Plato::InertialContent<SpaceDim, InertiaMaterialType> tInertialContent(mInertiaModel);
       Plato::ProjectToNode<SpaceDim, mNumDofsPerNode> tProjectInertialContent;
       Plato::ProjectStressToNode<SpaceDim,SpaceDim> tComputeStressForMicromorphicResidual;
       Plato::InterpolateFromNodal<SpaceDim, mNumDofsPerNode, /*offset=*/0, SpaceDim> tInterpolateFromNodal;

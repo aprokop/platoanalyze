@@ -1,8 +1,6 @@
 #pragma once
 
 #include "PlatoStaticsTypes.hpp"
-#include "LinearElasticMaterial.hpp"
-#include "hyperbolic/MicromorphicInertiaMaterial.hpp"
 
 namespace Plato
 {
@@ -13,7 +11,7 @@ namespace Plato
     given an acceleration vector, compute the inertial content, \rho \bm{a}
 */
 /******************************************************************************/
-template<int SpaceDim>
+template<int SpaceDim, typename MaterialType>
 class InertialContent
 {
   private:
@@ -21,13 +19,8 @@ class InertialContent
     const Plato::Scalar mRayleighA;
 
   public:
-    InertialContent(const Teuchos::RCP<Plato::LinearElasticMaterial<SpaceDim>> aMaterialModel ) :
+    InertialContent(const Teuchos::RCP<MaterialType> aMaterialModel ) :
             mCellDensity (aMaterialModel->getMassDensity()),
-            mRayleighA   (aMaterialModel->getRayleighA()) {}
-
-    // overloaded for micromorphic materials
-    InertialContent(const Teuchos::RCP<Plato::MicromorphicInertiaMaterial<SpaceDim>> aMaterialModel ) :
-            mCellDensity (aMaterialModel->getMacroscopicMassDensity()),
             mRayleighA   (aMaterialModel->getRayleighA()) {}
 
     template<typename TScalarType, typename TContentScalarType>

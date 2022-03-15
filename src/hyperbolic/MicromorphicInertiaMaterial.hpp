@@ -54,7 +54,7 @@ public:
      * \brief Return material density (mass unit/volume unit).
      * \return material density
     **********************************************************************************/
-    decltype(mCellMacroscopicDensity)     getMacroscopicMassDensity()     const {return mCellMacroscopicDensity;}
+    decltype(mCellMacroscopicDensity)     getMassDensity()     const {return mCellMacroscopicDensity;}
 
     /******************************************************************************//**
      * \brief Return cell inertia matrix Te.

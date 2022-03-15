@@ -1,5 +1,5 @@
-#ifndef HYPERBOLIC_ELASTOMECHANICS_RESIDUAL_HPP
-#define HYPERBOLIC_ELASTOMECHANICS_RESIDUAL_HPP
+#ifndef HYPERBOLIC_ELECTROELASTOMECHANICS_RESIDUAL_HPP
+#define HYPERBOLIC_ELECTROELASTOMECHANICS_RESIDUAL_HPP
 
 #include "Simp.hpp"
 #include "Ramp.hpp"
@@ -9,20 +9,22 @@
 #include "Strain.hpp"
 #include "Heaviside.hpp"
 #include "BodyLoads.hpp"
+#include "EMKinetics.hpp"
 #include "NaturalBCs.hpp"
 #include "Plato_Solve.hpp"
+#include "EMKinematics.hpp"
 #include "ProjectToNode.hpp"
 #include "RayleighStress.hpp"
 #include "ApplyWeighting.hpp"
+#include "FluxDivergence.hpp"
 #include "StressDivergence.hpp"
-#include "SimplexMechanics.hpp"
 #include "ApplyConstraints.hpp"
 #include "PlatoMathHelpers.hpp"
-#include "ElasticModelFactory.hpp"
 #include "InterpolateFromNodal.hpp"
 #include "PlatoAbstractProblem.hpp"
-#include "ElastomechanicsResidual.hpp"
+#include "SimplexElectromechanics.hpp"
 #include "LinearTetCubRuleDegreeOne.hpp"
+#include "LinearElectroelasticMaterial.hpp"
 
 #include "hyperbolic/Newmark.hpp"
 #include "hyperbolic/InertialContent.hpp"
@@ -31,14 +33,20 @@
 
 /******************************************************************************/
 template<typename EvaluationType, typename IndicatorFunctionType>
-class TransientMechanicsResidual :
-  public Plato::SimplexMechanics<EvaluationType::SpatialDim>,
+class TransientElectromechanicsResidual :
+  public Plato::SimplexElectromechanics<EvaluationType::SpatialDim>,
   public Plato::Hyperbolic::AbstractVectorFunction<EvaluationType>
 /******************************************************************************/
 {
     static constexpr Plato::OrdinalType mSpaceDim = EvaluationType::SpatialDim;
 
-    using PhysicsType = typename Plato::SimplexMechanics<mSpaceDim>;
+    static constexpr Plato::OrdinalType NElecDims = 1;
+    static constexpr Plato::OrdinalType NMechDims = mSpaceDim;
+
+    static constexpr Plato::OrdinalType EDofOffset = mSpaceDim;
+    static constexpr Plato::OrdinalType MDofOffset = 0;
+
+    using PhysicsType = typename Plato::SimplexElectromechanics<mSpaceDim>;
 
     using Plato::Simplex<mSpaceDim>::mNumNodesPerCell;
     using PhysicsType::mNumVoigtTerms;
@@ -59,33 +67,37 @@ class TransientMechanicsResidual :
     using CubatureType = Plato::LinearTetCubRuleDegreeOne<mSpaceDim>;
 
     IndicatorFunctionType mIndicatorFunction;
+    Plato::ApplyWeighting<mSpaceDim, mSpaceDim,      IndicatorFunctionType> mApplyEDispWeighting;
     Plato::ApplyWeighting<mSpaceDim, mNumVoigtTerms, IndicatorFunctionType> mApplyStressWeighting;
-    Plato::ApplyWeighting<mSpaceDim, mSpaceDim,       IndicatorFunctionType> mApplyMassWeighting;
+    Plato::ApplyWeighting<mSpaceDim, mSpaceDim,      IndicatorFunctionType> mApplyMassWeighting;
 
     std::shared_ptr<Plato::BodyLoads<EvaluationType, PhysicsType>> mBodyLoads;
     std::shared_ptr<CubatureType> mCubatureRule;
-    std::shared_ptr<Plato::NaturalBCs<mSpaceDim,mNumDofsPerNode>> mBoundaryLoads;
+
+    std::shared_ptr<Plato::NaturalBCs<mSpaceDim, NMechDims, mNumDofsPerNode, MDofOffset>> mBoundaryLoads;
+    std::shared_ptr<Plato::NaturalBCs<mSpaceDim, NElecDims, mNumDofsPerNode, EDofOffset>> mBoundaryCharges;
 
     bool mRayleighDamping;
 
-    using MaterialType = Plato::LinearElasticMaterial<mSpaceDim>;
+    using MaterialType = Plato::LinearElectroelasticMaterial<mSpaceDim>;
     Teuchos::RCP<MaterialType> mMaterialModel;
 
     std::vector<std::string> mPlottable;
 
   public:
     /**************************************************************************/
-    TransientMechanicsResidual(
+    TransientElectromechanicsResidual(
         const Plato::SpatialDomain   & aSpatialDomain,
               Plato::DataMap         & aDataMap,
               Teuchos::ParameterList & aProblemParams,
               Teuchos::ParameterList & aPenaltyParams
     ) :
         FunctionBaseType      (aSpatialDomain, aDataMap,
-                               {"displacement X", "displacement Y", "displacement Z"},
-                               {"velocity X",     "velocity Y",     "velocity Z"    },
-                               {"acceleration X", "acceleration Y", "acceleration Z"}),
+                               {"displacement X", "displacement Y", "displacement Z", "electric potential"},
+                               {"velocity X",     "velocity Y",     "velocity Z",     "electric potential dot"},
+                               {"acceleration X", "acceleration Y", "acceleration Z", "electric potential dot dot"}),
         mIndicatorFunction    (aPenaltyParams),
+        mApplyEDispWeighting  (mIndicatorFunction),
         mApplyStressWeighting (mIndicatorFunction),
         mApplyMassWeighting   (mIndicatorFunction),
         mBodyLoads            (nullptr),
@@ -95,11 +107,12 @@ class TransientMechanicsResidual :
     {
         // create material model and get stiffness
         //
-        Plato::ElasticModelFactory<mSpaceDim> tMaterialModelFactory(aProblemParams);
+        Plato::ElectroelasticModelFactory<mSpaceDim> tMaterialModelFactory(aProblemParams);
         mMaterialModel = tMaterialModelFactory.create(aSpatialDomain.getMaterialName());
 
-        mRayleighDamping = (mMaterialModel->getRayleighA() != 0.0)
-                        || (mMaterialModel->getRayleighB() != 0.0);
+        mRayleighDamping = false;
+//        mRayleighDamping = (mMaterialModel->getRayleighA() != 0.0)
+//                        || (mMaterialModel->getRayleighB() != 0.0);
 
         // parse body loads
         //
@@ -109,12 +122,20 @@ class TransientMechanicsResidual :
                          (aProblemParams.sublist("Body Loads"));
         }
 
-        // parse boundary Conditions
+        // parse mechanical boundary Conditions
         //
-        if(aProblemParams.isSublist("Natural Boundary Conditions"))
+        if(aProblemParams.isSublist("Mechanical Natural Boundary Conditions"))
         {
-            mBoundaryLoads = std::make_shared<Plato::NaturalBCs<mSpaceDim,mNumDofsPerNode>>
-                             (aProblemParams.sublist("Natural Boundary Conditions"));
+            mBoundaryLoads = std::make_shared<Plato::NaturalBCs<mSpaceDim, NMechDims, mNumDofsPerNode, MDofOffset>>
+                             (aProblemParams.sublist("Mechanical Natural Boundary Conditions"));
+        }
+
+        // parse electrical boundary Conditions
+        // 
+        if(aProblemParams.isSublist("Electrical Natural Boundary Conditions"))
+        {
+            mBoundaryCharges = std::make_shared<Plato::NaturalBCs<mSpaceDim, NElecDims, mNumDofsPerNode, EDofOffset>>
+                (aProblemParams.sublist("Electrical Natural Boundary Conditions"));
         }
 
         auto tResidualParams = aProblemParams.sublist("Hyperbolic");
@@ -206,41 +227,35 @@ class TransientMechanicsResidual :
     ) const
     /**************************************************************************/
     {
-      using SimplexPhysics = typename Plato::SimplexMechanics<mSpaceDim>;
-      using StrainScalarType =
+      using SimplexPhysics = typename Plato::SimplexElectromechanics<mSpaceDim>;
+      using GradScalarType =
           typename Plato::fad_type_t<SimplexPhysics, StateScalarType, ConfigScalarType>;
 
       auto tNumCells = mSpatialDomain.numCells();
 
       Plato::ComputeGradientWorkset<mSpaceDim> tComputeGradient;
-      Plato::Strain<mSpaceDim>                 tComputeVoigtStrain;
-      // Note one can use the HyperbolicLinearStress to call the
-      // original LinearStress operator (sans VelGrad) or the operator
-      // with VelGrad as below in evaluateWithDamping. That is the
-      // HyperbolicLinearStress contains both operator interfaces.
-      Plato::LinearStress<EvaluationType,
-                          SimplexPhysics>      tComputeVoigtStress(mMaterialModel);
-      // OR
-      // Plato::Hyperbolic::HyperbolicLinearStress
-      //          <EvaluationType, SimplexPhysics>     tComputeVoigtStress(mMaterialModel);
-      Plato::StressDivergence<mSpaceDim>              tComputeStressDivergence;
+
+      Plato::EMKinematics<mSpaceDim> tKinematics;
+      Plato::EMKinetics<mSpaceDim>   tKinetics(mMaterialModel);
+
+      Plato::StressDivergence<mSpaceDim, mNumDofsPerNode, MDofOffset> tComputeStressDivergence;
+      Plato::FluxDivergence  <mSpaceDim, mNumDofsPerNode, EDofOffset> tComputeEdispDivergence;
+
       Plato::InertialContent<mSpaceDim, MaterialType> tInertialContent(mMaterialModel);
 
-      Plato::ProjectToNode<mSpaceDim, mNumDofsPerNode>        tProjectInertialContent;
+      Plato::ProjectToNode<mSpaceDim, mNumDofsPerNode> tProjectInertialContent;
 
-      Plato::InterpolateFromNodal<mSpaceDim, mNumDofsPerNode, /*offset=*/0, mSpaceDim> tInterpolateFromNodal;
+      Plato::InterpolateFromNodal<mSpaceDim, mNumDofsPerNode, MDofOffset, NMechDims> tInterpolateFromNodal;
 
-      Plato::ScalarVectorT<ConfigScalarType>
-        tCellVolume("cell weight",tNumCells);
+      Plato::ScalarVectorT<ConfigScalarType> tCellVolume("cell weight", tNumCells);
 
-      Plato::ScalarMultiVectorT<StrainScalarType>
-        tStrain("strain",tNumCells,mNumVoigtTerms);
+      Plato::ScalarArray3DT<ConfigScalarType> tGradient("gradient", tNumCells, mNumNodesPerCell, mSpaceDim);
 
-      Plato::ScalarArray3DT<ConfigScalarType>
-        tGradient("gradient",tNumCells,mNumNodesPerCell,mSpaceDim);
+      Plato::ScalarMultiVectorT<GradScalarType> tStrain("strain", tNumCells, mNumVoigtTerms);
+      Plato::ScalarMultiVectorT<GradScalarType> tEfield("efield", tNumCells, mSpaceDim);
 
-      Plato::ScalarMultiVectorT<ResultScalarType>
-        tStress("stress",tNumCells,mNumVoigtTerms);
+      Plato::ScalarMultiVectorT<ResultScalarType> tStress("stress", tNumCells, mNumVoigtTerms);
+      Plato::ScalarMultiVectorT<ResultScalarType> tEDisp ("edisp",  tNumCells, mSpaceDim);
 
       Plato::ScalarMultiVectorT<StateDotDotScalarType>
         tAccelerationGP("acceleration at Gauss point", tNumCells, mSpaceDim);
@@ -252,23 +267,26 @@ class TransientMechanicsResidual :
 
       auto tQuadratureWeight = mCubatureRule->getCubWeight();
       auto& tApplyStressWeighting = mApplyStressWeighting;
+      auto& tApplyEDispWeighting = mApplyEDispWeighting;
       auto& tApplyMassWeighting = mApplyMassWeighting;
       Kokkos::parallel_for(Kokkos::RangePolicy<>(0, tNumCells), LAMBDA_EXPRESSION(const Plato::OrdinalType & aCellOrdinal)
       {
         tComputeGradient(aCellOrdinal, tGradient, aConfig, tCellVolume);
         tCellVolume(aCellOrdinal) *= tQuadratureWeight;
 
-        // compute strain
-        tComputeVoigtStrain(aCellOrdinal, tStrain, aState, tGradient);
+        // compute strain and electric field
+        tKinematics(aCellOrdinal, tStrain, tEfield, aState, tGradient);
 
-        // compute stress
-        tComputeVoigtStress(aCellOrdinal, tStress, tStrain);
+        // compute stress and electric displacement
+        tKinetics(aCellOrdinal, tStress, tEDisp, tStrain, tEfield);
 
         // apply weighting
         tApplyStressWeighting(aCellOrdinal, tStress, aControl);
+        tApplyEDispWeighting (aCellOrdinal, tEDisp,  aControl);
 
         // compute stress divergence
         tComputeStressDivergence(aCellOrdinal, aResult, tStress, tGradient, tCellVolume);
+        tComputeEdispDivergence (aCellOrdinal, aResult, tEDisp,  tGradient, tCellVolume);
 
         // compute accelerations at gausspoints
         tInterpolateFromNodal(aCellOrdinal, tBasisFunctions, aStateDotDot, tAccelerationGP);
@@ -286,6 +304,8 @@ class TransientMechanicsResidual :
 
      if( std::count(mPlottable.begin(),mPlottable.end(),"stress") ) toMap(mDataMap, tStress, "stress", mSpatialDomain);
      if( std::count(mPlottable.begin(),mPlottable.end(),"strain") ) toMap(mDataMap, tStress, "strain", mSpatialDomain);
+     if( std::count(mPlottable.begin(),mPlottable.end(),"efield") ) toMap(mDataMap, tEfield, "efield", mSpatialDomain);
+     if( std::count(mPlottable.begin(),mPlottable.end(),"edisp" ) ) toMap(mDataMap, tEDisp,  "edisp" , mSpatialDomain);
 
       if( mBodyLoads != nullptr )
       {
@@ -306,6 +326,7 @@ class TransientMechanicsResidual :
     ) const
     /**************************************************************************/
     {
+#ifdef NOPE
       using SimplexPhysics = typename Plato::SimplexMechanics<mSpaceDim>;
       using StrainScalarType =
           typename Plato::fad_type_t<SimplexPhysics, StateScalarType, ConfigScalarType>;
@@ -317,9 +338,9 @@ class TransientMechanicsResidual :
       Plato::Strain<mSpaceDim>                 tComputeVoigtStrain;
       Plato::RayleighStress<mSpaceDim>         tComputeVoigtStress(mMaterialModel);
       Plato::StressDivergence<mSpaceDim>       tComputeStressDivergence;
+      Plato::InertialContent<mSpaceDim>        tInertialContent(mMaterialModel);
 
-      Plato::InertialContent<mSpaceDim, MaterialType>  tInertialContent(mMaterialModel);
-      Plato::ProjectToNode<mSpaceDim, mNumDofsPerNode> tProjectInertialContent;
+      Plato::ProjectToNode<mSpaceDim, mNumDofsPerNode>        tProjectInertialContent;
 
       Plato::InterpolateFromNodal<mSpaceDim, mNumDofsPerNode, /*offset=*/0, mSpaceDim> tInterpolateFromNodal;
 
@@ -397,6 +418,7 @@ class TransientMechanicsResidual :
       {
           mBodyLoads->get( mSpatialDomain, aState, aControl, aResult, -1.0 );
       }
+#endif
     }
     /**************************************************************************/
     void
@@ -416,6 +438,11 @@ class TransientMechanicsResidual :
         if( mBoundaryLoads != nullptr )
         {
             mBoundaryLoads->get(aSpatialModel, aState, aControl, aConfig, aResult, -1.0, aCurrentTime );
+        }
+
+        if( mBoundaryCharges != nullptr )
+        {
+            mBoundaryCharges->get(aSpatialModel, aState, aControl, aConfig, aResult, -1.0, aCurrentTime );
         }
     }
 };
